@@ -12,7 +12,7 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 ## What works today
 
-- Docker Compose stack with PostgreSQL 16 and the analyzer service.
+- Docker Compose stack with PostgreSQL 16 and the analyzer service, plus an optional pinned n8n profile.
 - API-key protected Fastify API and idempotent PostgreSQL migrations.
 - PostgreSQL job queue using `FOR UPDATE SKIP LOCKED`, concurrency capped at two, stale-lock recovery, and graceful shutdown.
 - SSRF controls for every browser HTTP/HTTPS request and every redirect hop, with DNS validation and connection pinning to a validated IP.
@@ -27,6 +27,7 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 - Evidence-linked structured draft output, V1–V16 validation, server-side body rendering, human approval, suppression checks, and `.eml` export.
 - Bounded CSV campaign import with per-row results, deduplication, suppression checks, and partial success.
 - Campaign-wide audit enqueue and aggregate progress endpoints designed for polling.
+- Importable n8n campaign → CSV → audit → evidence draft → human review → `.eml` workflow.
 - No automatic email delivery.
 
 ## Experimental features
@@ -35,8 +36,7 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 ## Not completed
 
-- n8n service integration and the five planned n8n workflows.
-- n8n Form review UI and binary screenshot prototype.
+- The remaining four planned specialized n8n workflows and production pilot UI hardening.
 - Contact discovery persistence, dashboard, and the 50-company pilot.
 - Automatic email sending is intentionally out of scope for v0.1.
 
@@ -81,6 +81,17 @@ Health check:
 ```sh
 curl http://127.0.0.1:8080/healthz
 ```
+
+To run the optional n8n vertical slice, also replace `N8N_DB_PASSWORD` and
+`N8N_ENCRYPTION_KEY`, then use:
+
+```sh
+docker compose --profile n8n -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+n8n is then available only at `http://127.0.0.1:5678`. Complete owner setup and
+follow [the workflow guide](docs/n8n-workflows.md). Production deployments must
+use an authenticated HTTPS reverse proxy and must not publish n8n directly.
 
 ## Development and tests
 
@@ -182,6 +193,9 @@ All endpoints except `/healthz` require `X-API-Key`.
 - [Design](docs/design/v0.1-design.md)
 - [Finding codes](docs/finding-codes.md)
 - [Security notes](docs/security-notes.md)
+- [n8n installation](docs/n8n-installation.md)
+- [n8n workflow guide](docs/n8n-workflows.md)
+- [Responsible use](docs/responsible-use.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
