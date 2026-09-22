@@ -36,9 +36,10 @@ test('Docker full smoke: audit → score → evidence draft → approval → eml
   const campaign=await app.inject({method:'POST',url:'/campaigns',headers:auth,payload:{name:'Kurgusal Smoke',sector:'demo',city:'Örnekşehir',min_score:0}});
   assert.equal(campaign.statusCode,201,campaign.body);
   const company=await app.inject({method:'POST',url:`/campaigns/${campaign.json().id}/companies`,headers:auth,payload:{name:'Kurgusal İşletme',website:`${fixture.origin}/crawl-home.html`}});
-  assert.equal(company.statusCode,201,company.body); const companyId=company.json().company_id;
-  const queued=await app.inject({method:'POST',url:'/audits',headers:auth,payload:{company_id:companyId,page_limit:5}});
-  assert.equal(queued.statusCode,202,queued.body); const auditId=queued.json().audit_id;
+  assert.equal(company.statusCode,201,company.body);const companyId=company.json().company_id;
+  const queued=await app.inject({method:'POST',url:`/campaigns/${campaign.json().id}/audits`,headers:auth,payload:{page_limit:5}});
+  assert.equal(queued.statusCode,202,queued.body);assert.equal(queued.json().queued,1);
+  const auditRow=await query<{id:string}>('SELECT id FROM pitchtrace.audits WHERE company_id=$1',[companyId]);const auditId=auditRow.rows[0]!.id;
   const audit=await waitCompleted(auditId);
   assert.ok(Number((audit.progress as {pages_fetched:number}).pages_fetched)>=1); assert.ok(Number((audit.progress as {pages_fetched:number}).pages_fetched)<=5);
   assert.ok(Number(audit.findings_count)>0); assert.ok(audit.score); assert.ok((audit.artifacts as unknown[]).length>0);

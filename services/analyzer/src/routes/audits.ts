@@ -76,10 +76,16 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
 
       const audit = await query<{ id: string }>(
         `INSERT INTO pitchtrace.audits (company_id, entry_url, page_limit, analyzer_version)
-         VALUES ($1,$2,$3,$4) RETURNING id`,
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (company_id) WHERE status IN ('queued','running') DO NOTHING
+         RETURNING id`,
         [row.id, entryUrl, pageLimit, config.version],
       );
-      const auditId = audit.rows[0]!.id;
+      const auditId = audit.rows[0]?.id;
+      if (!auditId) {
+        const concurrent = await query<{id:string;status:string}>(`SELECT id,status FROM pitchtrace.audits WHERE company_id=$1 AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1`,[row.id]);
+        return reply.code(200).send({audit_id:concurrent.rows[0]!.id,status:concurrent.rows[0]!.status,idempotent:true});
+      }
 
       await query(
         `INSERT INTO pitchtrace.audit_jobs (audit_id, company_id) VALUES ($1,$2)

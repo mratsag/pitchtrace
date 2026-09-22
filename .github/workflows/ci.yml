@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyzer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pitchtrace
+          POSTGRES_PASSWORD: pitchtrace-ci
+          POSTGRES_DB: pitchtrace_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U pitchtrace -d pitchtrace_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: services/analyzer
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://pitchtrace:pitchtrace-ci@127.0.0.1:5433/pitchtrace_test
+      ANALYZER_API_KEY: ci-test-key
+      SSRF_ALLOW_LOOPBACK: '1'
+      SSRF_PIN_DNS: '0'
+      PER_DOMAIN_MIN_INTERVAL_MS: '0'
+      PERF_MEASURE_WINDOW_MS: '300'
+      PERF_SETTLE_MS: '200'
+      LOG_LEVEL: error
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: services/analyzer/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - name: Check committed whitespace
+        working-directory: .
+        run: git show --check --format= HEAD && git diff --check

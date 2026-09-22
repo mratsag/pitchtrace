@@ -1,5 +1,7 @@
 # PitchTrace
 
+[![CI](https://github.com/mratsag/pitchtrace/actions/workflows/ci.yml/badge.svg)](https://github.com/mratsag/pitchtrace/actions/workflows/ci.yml)
+
 Open-source, evidence-linked website auditing and human-approved outreach workflows.
 
 > **Core principle:** Every factual outreach claim must trace back to a recorded website finding.
@@ -23,6 +25,8 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 - LCP, TTFB, and transfer measurements; optional PageSpeed Insights enrichment.
 - Deterministic `scoring.v1` opportunity scoring from 0–100.
 - Evidence-linked structured draft output, V1–V16 validation, server-side body rendering, human approval, suppression checks, and `.eml` export.
+- Bounded CSV campaign import with per-row results, deduplication, suppression checks, and partial success.
+- Campaign-wide audit enqueue and aggregate progress endpoints designed for polling.
 - No automatic email delivery.
 
 ## Experimental features
@@ -31,7 +35,6 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 ## Not completed
 
-- CSV campaign import and campaign-level audit orchestration.
 - n8n service integration and the five planned n8n workflows.
 - n8n Form review UI and binary screenshot prototype.
 - Contact discovery persistence, dashboard, and the 50-company pilot.
@@ -94,11 +97,74 @@ npm test
 
 Tests use local HTTP/HTTPS fixtures and do not require internet access. The full Docker smoke script is `scripts/smoke.ps1`.
 
+## CI
+
+`CI` runs on pushes and pull requests to `main` with Node 22 and PostgreSQL 16. It performs a clean `npm ci`, installs the pinned Chromium runtime, then runs typecheck, production build, the complete test suite, and whitespace checks. It needs no repository secrets.
+
+The full Docker smoke is intentionally separate and can be started from the GitHub Actions **Docker smoke** workflow or locally:
+
+```sh
+bash scripts/smoke.sh
+```
+
+On Windows, run `scripts/smoke.ps1`; both wrappers execute the same Compose smoke definition.
+
+## CSV company import
+
+Upload one UTF-8 CSV file in a multipart field named `file`:
+
+```sh
+curl -X POST http://127.0.0.1:8080/campaigns/CAMPAIGN_ID/companies/import \
+  -H "X-API-Key: $ANALYZER_API_KEY" \
+  -F "file=@examples/companies.csv;type=text/csv"
+```
+
+Supported headers are `company_name`, `website`, `contact_name`, and `contact_email`. The first two are required; contact columns and values are optional. Header order may change, UTF-8 BOM and quoted fields are supported, and blank rows are ignored. Unknown or duplicate headers are rejected rather than guessed.
+
+Limits:
+
+- 128 KiB per CSV file
+- 50 non-empty data rows
+- 2,000 characters per generic field
+- 200 characters for company/contact names
+- 320 characters for email
+
+Formula-like cells beginning with `=`, `+`, `-`, or `@` are rejected. Each row receives a stable status/code. Valid rows are committed even when another row is invalid. Duplicate domains inside the file and domains already in the campaign are reported separately. Explicit email or domain suppression prevents that row from being imported. See [examples/companies.csv](examples/companies.csv).
+
+Stable row result codes are `DUPLICATE_IN_FILE`, `DUPLICATE_EXISTING`,
+`MISSING_REQUIRED_VALUE`, `INVALID_URL`, `UNSAFE_URL`,
+`INVALID_EMAIL`, `FORMULA_CELL`, `FIELD_TOO_LONG`, `COLUMN_COUNT_MISMATCH`,
+`EMAIL_SUPPRESSED`, `DOMAIN_SUPPRESSED`, `CAMPAIGN_LIMIT_REACHED`, and
+`ROW_WRITE_FAILED`. Successful rows use `code: null`; clients should branch on
+these codes rather than parsing the human-readable message.
+
+## Campaign audit orchestration
+
+Queue every eligible company without waiting for the crawl:
+
+```sh
+curl -X POST http://127.0.0.1:8080/campaigns/CAMPAIGN_ID/audits \
+  -H "X-API-Key: $ANALYZER_API_KEY" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+Poll aggregate progress:
+
+```sh
+curl http://127.0.0.1:8080/campaigns/CAMPAIGN_ID/audit-progress \
+  -H "X-API-Key: $ANALYZER_API_KEY"
+```
+
+Active and previously completed audits are not duplicated. Explicit domain suppression skips audit creation; email-only suppression does not prevent a public website audit but is enforced for import/draft/export where an email is relevant. `terminal` becomes true when no latest campaign audit is queued or running.
+
 ## API overview
 
 - `GET /healthz`
 - `POST /campaigns`
 - `POST /campaigns/{id}/companies`
+- `POST /campaigns/{id}/companies/import`
+- `POST /campaigns/{id}/audits`
+- `GET /campaigns/{id}/audit-progress`
 - `POST /audits`
 - `GET /audits/{id}`
 - `POST /audits/{id}/score`

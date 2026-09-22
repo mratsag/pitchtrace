@@ -6,6 +6,8 @@ import { campaignRoutes } from './routes/campaigns.js';
 import { artifactRoutes } from './routes/artifacts.js';
 import { draftRoutes } from './routes/drafts.js';
 import { suppressionRoutes } from './routes/suppression.js';
+import { importRoutes } from './routes/imports.js';
+import { campaignAuditRoutes } from './routes/campaign-audits.js';
 
 const PUBLIC_PATHS = new Set(['/healthz']);
 
@@ -23,6 +25,8 @@ export async function buildServer(): Promise<FastifyInstance> {
       return reply.code(401).send();
     }
   });
+
+  app.addContentTypeParser(/^multipart\/form-data(?:;.*)?$/i,{parseAs:'buffer',bodyLimit:256*1024},(_request,body,done)=>done(null,body));
 
   app.get('/healthz', async () => {
     let db = 'down';
@@ -44,6 +48,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(artifactRoutes);
   await app.register(draftRoutes);
   await app.register(suppressionRoutes);
+  await app.register(importRoutes);
+  await app.register(campaignAuditRoutes);
 
   return app;
 }
