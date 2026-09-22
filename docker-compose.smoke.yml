@@ -1,0 +1,40 @@
+services:
+  smoke-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pitchtrace
+      POSTGRES_PASSWORD: ${SMOKE_POSTGRES_PASSWORD}
+      POSTGRES_DB: pitchtrace_smoke
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U pitchtrace -d pitchtrace_smoke]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [pitchtrace]
+
+  smoke:
+    build:
+      context: ./services/analyzer
+      target: build
+    depends_on:
+      smoke-postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgres://pitchtrace:${SMOKE_POSTGRES_PASSWORD}@smoke-postgres:5432/pitchtrace_smoke
+      ANALYZER_API_KEY: ${SMOKE_API_KEY}
+      MIGRATIONS_DIR: /migrations
+      ARTIFACT_ROOT: /tmp/pitchtrace-smoke-artifacts
+      SSRF_ALLOW_LOOPBACK: '1'
+      SSRF_PIN_DNS: '0'
+      PER_DOMAIN_MIN_INTERVAL_MS: '0'
+      PERF_MEASURE_WINDOW_MS: '300'
+      PERF_SETTLE_MS: '200'
+      JOB_IDLE_POLL_MS: '50'
+      LOG_LEVEL: error
+    volumes:
+      - ./database/migrations:/migrations:ro
+    command: [node, --test, --test-concurrency=1, dist/tests/smoke/full-smoke.smoke.js]
+    networks: [pitchtrace]

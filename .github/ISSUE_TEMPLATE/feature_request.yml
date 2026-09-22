@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a focused improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: Problem, description: What user problem should be solved? }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposed solution }
+    validations: { required: true }
+  - type: textarea
+    id: evidence
+    attributes: { label: Evidence and safety impact, description: Explain effects on claim traceability, crawling, privacy, and abuse prevention. }
+    validations: { required: true }

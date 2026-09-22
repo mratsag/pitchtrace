@@ -1,0 +1,65 @@
+# PitchTrace — public alpha
+name: pitchtrace
+# Varsayılan olarak HİÇBİR servis host'a port açmaz.
+# Geliştirme için: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  postgres:
+    container_name: pitchtrace-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pitchtrace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-pitchtrace}
+    volumes:
+      - pitchtrace-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pitchtrace} -d ${POSTGRES_DB:-pitchtrace}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [pitchtrace]
+
+  analyzer:
+    container_name: pitchtrace-analyzer
+    build:
+      context: ./services/analyzer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pitchtrace}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pitchtrace}
+      ANALYZER_API_KEY: ${ANALYZER_API_KEY:?ANALYZER_API_KEY is required}
+      RUN_MIGRATIONS_ON_BOOT: 'true'
+      MIGRATIONS_DIR: /migrations
+      ARTIFACT_ROOT: /data
+      AUDIT_CONCURRENCY: ${AUDIT_CONCURRENCY:-2}
+      # SSRF_ALLOW_LOOPBACK bilerek tanımlanmaz: üretimde kapalıdır.
+    volumes:
+      - ./database/migrations:/migrations:ro
+      - ./data:/data
+    # Host'a port AÇILMAZ. Erişim yalnızca `pitchtrace` ağı üzerindendir.
+    expose:
+      - '8080'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [pitchtrace]
+
+volumes:
+  pitchtrace-postgres-data:
+    name: pitchtrace-postgres-data
+
+networks:
+  pitchtrace:
+    name: pitchtrace-network
+    driver: bridge

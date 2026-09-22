@@ -1,0 +1,19 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage/
+test-results/
+playwright-report/
+.cache/
+*.log
+*.eml
+
+# Artifact çıktıları (screenshot vb.) depoya girmez.
+data/
+!data/.gitkeep
+artifacts/
+screenshots/
+exports/
