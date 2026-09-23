@@ -21,3 +21,22 @@ jobs:
       - name: Show container logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml -f docker-compose.smoke.yml logs --no-color
+
+  # Real n8n 2.39.10 executions in a disposable, Internet-isolated stack:
+  # shared retry workflow under deterministic fault injection, and the real
+  # n8n Form in Chromium through preview expiry and same-artifact refresh.
+  n8n-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run n8n runtime retry and Form/preview verification
+        run: bash scripts/test-n8n-runtime.sh
+      - name: Upload runtime report (no secrets, fictional data only)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: n8n-runtime-report
+          path: test-results/n8n-runtime/
+          retention-days: 3
+          if-no-files-found: ignore

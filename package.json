@@ -5,6 +5,7 @@
   "scripts": {
     "test:workflows": "node --test tests/workflows/*.test.mjs",
     "pilot:check": "node scripts/pilot-check.mjs",
-    "backup:drill": "bash scripts/test-backup-restore.sh"
+    "backup:drill": "bash scripts/test-backup-restore.sh",
+    "test:n8n-runtime": "bash scripts/test-n8n-runtime.sh"
   }
 }

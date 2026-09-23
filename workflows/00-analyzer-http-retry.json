@@ -99,6 +99,10 @@
         "url": "={{ $json.url }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.method === 'GET' ? undefined : '{}' }}",
         "options": {
           "timeout": 10000,
           "response": {
@@ -121,7 +125,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const init=$('Initialize Retry State').first().json; const attempt=$runIndex+1; const status=Number($json.statusCode??$json.status??0); const network=!status||Boolean($json.error); const transient=network||[408,425,429,500,502,503,504].includes(status); const retry=Boolean(init.retry_safe)&&transient&&attempt<Number(init.max_attempts); const retryAfter=Number($json.headers?.['retry-after']??0); const delayMs=Math.min(10000,retryAfter>0?retryAfter*1000:500*(2**(attempt-1))+Math.floor(Math.random()*250)); if(retry) return [{json:{method:init.method,url:init.url,retry_safe:init.retry_safe,operation:init.operation,attempt,should_retry:true,delay_ms:delayMs}}]; if(status>=400||network) return [{json:{ok:false,status,attempts:attempt,error:status===409?'SUPPRESSED_OR_CONFLICT':'ANALYZER_REQUEST_FAILED',message:'Analyzer isteği tamamlanamadı; hassas yanıt ayrıntıları gizlendi.'}}]; return [{json:{...($json.body??$json),retry:{attempts:attempt}}}];"
+        "jsCode": "const init=$('Initialize Retry State').first().json; const attempt=$runIndex+1; const status=Number($json.statusCode??$json.status??0); const network=!status||Boolean($json.error); const transient=network||[408,425,429,500,502,503,504].includes(status); const retry=Boolean(init.retry_safe)&&transient&&attempt<Number(init.max_attempts); const retryAfter=Number($json.headers?.['retry-after']??0); const delayMs=Math.min(10000,retryAfter>0?retryAfter*1000:500*(2**(attempt-1))+Math.floor(Math.random()*250)); if(retry) return [{json:{method:init.method,url:init.url,retry_safe:init.retry_safe,operation:init.operation,attempt,should_retry:true,delay_ms:delayMs}}]; if(status>=400||network){ const suppressed=status===409&&$json.body?.error==='SUPPRESSED'; const code=suppressed?'SUPPRESSED':status===409?'CONFLICT':network?'ANALYZER_UNREACHABLE':'ANALYZER_REQUEST_FAILED'; return [{json:{ok:false,status,attempts:attempt,error:code,operation:init.operation,message:suppressed?'Alıcı veya domain bastırma listesinde; işlem durduruldu ve tekrar denenmedi.':'Analyzer isteği tamamlanamadı; hassas yanıt ayrıntıları gizlendi.'}}]; } return [{json:{...($json.body??$json),retry:{attempts:attempt}}}];"
       }
     },
     {
@@ -191,9 +195,67 @@
             }
           ]
         },
-        "options": {
-          "includeOtherFields": true
-        }
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "5f1c2b7e-3a94-4d61-8b0e-7c2d9e4a6f18",
+      "name": "Analyzer Call Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "succeeded",
+              "leftValue": "={{ $json.ok !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8a3d5e9b-1c47-4f2a-9e6d-0b8c7a5f3e21",
+      "name": "Return Analyzer Result",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        60
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c6e9a1f4-7b2d-4c58-a3e0-9d1f6b4c8a72",
+      "name": "Stop With Sanitized Error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "={{ $json.error + ' (HTTP ' + $json.status + ', ' + $json.attempts + ' deneme, ' + $json.operation + '): ' + $json.message }}"
       }
     }
   ],
@@ -251,7 +313,13 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Analyzer Call Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Bounded Backoff": {
@@ -275,6 +343,24 @@
           }
         ]
       ]
+    },
+    "Analyzer Call Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Return Analyzer Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop With Sanitized Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -284,5 +370,5 @@
     "templateCredsSetupCompleted": false
   },
   "pinData": {},
-  "versionId": "b1144cea-858a-492d-8fa7-7267a781b255"
+  "versionId": "ff2d3994-f2e3-47a8-8a88-04774d1329f9"
 }

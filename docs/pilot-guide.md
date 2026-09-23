@@ -10,3 +10,15 @@ This phase does not add automatic reply tracking or sending. Operators remain re
 `production_ready`. A test configuration may be runtime-ready, but production
 remains false until backup/restore, host egress firewall, editor access policy,
 workflow import and HTTPS gates are explicitly verified.
+
+Before a pilot, run `npm run test:n8n-runtime` (see
+[n8n-runtime-testing.md](n8n-runtime-testing.md)). It proves, on a real
+disposable n8n 2.39.10 instance, that the shared retry workflow retries only
+transient failures, that the main workflow's Form reaches draft review, and
+that preview expiry and same-artifact refresh work in Chromium without
+exposing the analyzer key or calling approval/export. It uses only fictional
+data and test-only TTL/polling values; it never touches existing volumes.
+This is runtime evidence for the workflows, not a production gate: egress
+firewall, editor access policy, the external task-runner staging decision and
+HTTPS must still be verified in the target environment before
+`production_ready` can become true.
