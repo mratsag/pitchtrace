@@ -17,4 +17,4 @@ docker run --rm \
   -e N8N_ENCRYPTION_KEY=smoke-import-validation-key-32chars \
   -v "$(pwd)/workflows:/workflows:ro" \
   docker.n8n.io/n8nio/n8n:2.39.10 \
-  import:workflow --input=/workflows/01-campaign-audit-review.json
+  import:workflow --separate --input=/workflows

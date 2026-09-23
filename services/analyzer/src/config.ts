@@ -35,6 +35,8 @@ export const AUDIT_CONCURRENCY_CEILING = 2;
 export const PER_DOMAIN_MIN_INTERVAL_DEFAULT_MS = 1_000;
 export const PREVIEW_TTL_DEFAULT_SECONDS = 600;
 export const PREVIEW_TTL_MAX_SECONDS = 900;
+export const PREVIEW_REFRESH_TTL_DEFAULT_SECONDS = 3600;
+export const PREVIEW_REFRESH_TTL_MAX_SECONDS = 7200;
 
 /**
  * Performans eşiklerinin ÜRETİM varsayılanları (docs/design §7.3).
@@ -71,6 +73,10 @@ export const config = {
   previewTokenTtlSeconds: Math.min(
     Math.max(int('PREVIEW_TOKEN_TTL_SECONDS', PREVIEW_TTL_DEFAULT_SECONDS), 60),
     PREVIEW_TTL_MAX_SECONDS,
+  ),
+  previewRefreshTtlSeconds: Math.min(
+    Math.max(int('PREVIEW_REFRESH_TTL_SECONDS', PREVIEW_REFRESH_TTL_DEFAULT_SECONDS), 300),
+    PREVIEW_REFRESH_TTL_MAX_SECONDS,
   ),
   publicBaseUrl: str('PUBLIC_BASE_URL', ''),
   auditEnabled: bool('AUDIT_ENABLED', true),

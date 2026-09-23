@@ -67,6 +67,16 @@ retried. The central retry policy permits only network errors and
 408/425/429/500/502/503/504, with three total attempts, capped exponential
 backoff, jitter, and bounded Retry-After handling. Operators must not enable
 generic retry-on-fail independently on individual nodes.
+
+The main workflow calls `00-analyzer-http-retry.json` for audit start/progress,
+draft context and preview access. Campaign creation, CSV import, draft creation,
+approval and `.eml` export are not automatically retried because their result
+can be ambiguous or they append state. See `retry-idempotency-matrix.md`.
+
+If a preview expires, the review form shows a refresh link bound to the same
+artifact. The refresh handle can mint only a new short-lived read token, never
+accepts an artifact ID or URL from the browser, and does not approve or recreate
+the audit/draft. The old token remains expired.
 version. Import validation, no eligible company/finding, draft validation,
 artifact expiry, timeout, suppression, and export errors remain visible in the
 execution. n8n execution data must be treated as sensitive and pruned/backed up

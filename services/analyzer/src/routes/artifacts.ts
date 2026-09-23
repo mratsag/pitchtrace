@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { ArtifactPathError, resolveArtifactPathReal } from '../security/artifact-path.js';
-import { createPreviewToken, verifyPreviewToken } from '../security/preview-token.js';
+import { createPreviewRefreshHandle, createPreviewToken, verifyPreviewRefreshHandle, verifyPreviewToken } from '../security/preview-token.js';
 
 interface ArtifactRow {
   id: string;
@@ -23,8 +23,21 @@ export async function artifactRoutes(app: FastifyInstance): Promise<void> {
     if (!row || row.deleted_at !== null) return reply.code(404).send({ error: 'ARTIFACT_NOT_FOUND' });
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(row.mime)) return reply.code(415).send({ error: 'UNSUPPORTED_PREVIEW_TYPE' });
     const access = createPreviewToken(row.id);
+    const refresh = createPreviewRefreshHandle(row.id);
     const relative = `/artifact-previews/${access.token}`;
-    return reply.send({ artifact_id: row.id, preview_url: config.publicBaseUrl ? new URL(relative, config.publicBaseUrl).toString() : relative, expires_at: access.expiresAt });
+    const refreshRelative = `/artifact-preview-refresh/${refresh.handle}`;
+    return reply.send({ artifact_id: row.id, preview_url: absolutePublic(relative), expires_at: access.expiresAt,
+      refresh_url: absolutePublic(refreshRelative), refresh_expires_at: refresh.expiresAt });
+  });
+
+  app.get<{ Params: { handle: string } }>('/artifact-preview-refresh/:handle', async (request, reply) => {
+    const verified = verifyPreviewRefreshHandle(request.params.handle);
+    if (!verified) return reply.code(401).headers(previewHeaders()).send({ error:'PREVIEW_REFRESH_INVALID_OR_EXPIRED' });
+    const row = (await query<Pick<ArtifactRow,'id'|'mime'|'deleted_at'>>('SELECT id,mime,deleted_at FROM pitchtrace.artifacts WHERE id=$1',[verified.artifactId])).rows[0];
+    if (!row || row.deleted_at !== null) return reply.code(404).headers(previewHeaders()).send({error:'ARTIFACT_NOT_FOUND'});
+    if (!['image/png','image/jpeg','image/webp'].includes(row.mime)) return reply.code(415).headers(previewHeaders()).send({error:'UNSUPPORTED_PREVIEW_TYPE'});
+    const access=createPreviewToken(row.id);
+    return reply.code(302).header('location',absolutePublic(`/artifact-previews/${access.token}`)).headers(previewHeaders()).send();
   });
 
   app.get<{ Params: { token: string } }>('/artifact-previews/:token', async (request, reply) => {
@@ -47,6 +60,8 @@ export async function artifactRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => sendArtifact(request.params.id, request, reply, false),
   );
 }
+
+function absolutePublic(relative: string): string { return config.publicBaseUrl ? new URL(relative,config.publicBaseUrl).toString() : relative; }
 
 function previewHeaders(): Record<string,string> {
   return { 'cache-control':'private, no-store', pragma:'no-cache', 'x-content-type-options':'nosniff',

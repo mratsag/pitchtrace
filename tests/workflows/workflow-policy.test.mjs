@@ -6,6 +6,7 @@ import test from 'node:test';
 const workflowPath = path.resolve('workflows/01-campaign-audit-review.json');
 const source = fs.readFileSync(workflowPath, 'utf8');
 const workflow = JSON.parse(source);
+const retryWorkflow = JSON.parse(fs.readFileSync(path.resolve('workflows/00-analyzer-http-retry.json'),'utf8'));
 const nodes = new Map(workflow.nodes.map((node) => [node.name, node]));
 
 function outputs(name, branch) {
@@ -75,14 +76,33 @@ test('human gates dominate queueing and approval; rejection never calls approval
 
 test('screenshot preview uses an artifact-bound short-lived URL without exposing the API key', () => {
   const fetch = nodes.get('Request Short-Lived Preview Access');
-  assert.match(fetch.parameters.url, /\/artifacts\/.*\/preview-access/);
-  assert.equal(fetch.parameters.method, 'POST');
+  assert.match(fetch.parameters.workflowInputs.value.url, /\/artifacts\/.*\/preview-access/);
+  assert.equal(fetch.parameters.workflowInputs.value.method, 'POST');
   const review = nodes.get('Human Draft Review');
   assert.match(review.parameters.options.formDescription, /preview_url/);
   assert.match(review.parameters.options.formDescription, /referrerpolicy=/);
+  assert.match(review.parameters.options.formDescription, /refresh_url/);
+  assert.match(review.parameters.options.formDescription, /süresi dolduysa/);
   assert.ok(!nodes.has('Controlled Screenshot Preview'));
   assert.ok(!nodes.has('Fetch Preview Artifact'));
   assert.doesNotMatch(source, /data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]{100}/);
+});
+
+test('retry-safe analyzer calls use the shared retry workflow',()=>{
+  const retryId=retryWorkflow.id;
+  for(const name of ['Queue Campaign Audits','Get Audit Progress','Get Draft Context','Request Short-Lived Preview Access']){
+    const node=nodes.get(name);
+    assert.equal(node.type,'n8n-nodes-base.executeWorkflow',name);
+    assert.equal(node.parameters.workflowId.value,retryId,name);
+    assert.equal(node.parameters.workflowInputs.value.retry_safe,true,name);
+  }
+  for(const name of ['Create Campaign','Import CSV','Validate and Store Draft','Record Explicit Approval','Export Approved EML']){
+    assert.notEqual(nodes.get(name).type,'n8n-nodes-base.executeWorkflow',`${name} must not auto-retry`);
+  }
+  const retrySource=JSON.stringify(retryWorkflow);
+  for(const status of [408,425,429,500,502,503,504]) assert.match(retrySource,new RegExp(String(status)));
+  assert.match(retrySource,/attempt<Number\(init\.max_attempts\)/);
+  assert.doesNotMatch(retrySource,/x-api-key|response\.body|console\./i);
 });
 
 test('deterministic draft still goes through analyzer V1–V16 endpoint', () => {

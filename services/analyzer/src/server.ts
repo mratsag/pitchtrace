@@ -9,7 +9,7 @@ import { suppressionRoutes } from './routes/suppression.js';
 import { importRoutes } from './routes/imports.js';
 import { campaignAuditRoutes } from './routes/campaign-audits.js';
 
-const PUBLIC_PATHS = new Set(['/healthz', '/livez', '/readyz', '/artifact-previews/:token']);
+const PUBLIC_PATHS = new Set(['/healthz', '/livez', '/readyz', '/artifact-previews/:token', '/artifact-preview-refresh/:handle']);
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({

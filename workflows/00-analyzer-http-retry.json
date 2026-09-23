@@ -1,0 +1,288 @@
+{
+  "id": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+  "name": "PitchTrace - Analyzer HTTP Retry",
+  "active": false,
+  "nodes": [
+    {
+      "id": "9de2676e-3990-44a4-9964-bc5ea0679a51",
+      "name": "Called by PitchTrace Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "method"
+            },
+            {
+              "name": "url"
+            },
+            {
+              "name": "retry_safe",
+              "type": "boolean"
+            },
+            {
+              "name": "operation"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cbafeb42-fe2a-4c22-8746-87f1cd814496",
+      "name": "Initialize Retry State",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "attempt",
+              "type": "number",
+              "value": 1
+            },
+            {
+              "id": "b",
+              "name": "max_attempts",
+              "type": "number",
+              "value": 3
+            },
+            {
+              "id": "c",
+              "name": "method",
+              "type": "string",
+              "value": "={{ $json.method }}"
+            },
+            {
+              "id": "d",
+              "name": "url",
+              "type": "string",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "id": "e",
+              "name": "retry_safe",
+              "type": "boolean",
+              "value": "={{ $json.retry_safe }}"
+            },
+            {
+              "id": "f",
+              "name": "operation",
+              "type": "string",
+              "value": "={{ $json.operation }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9ac4bc55-8b34-449d-8ebc-c84e7b5ea4c6",
+      "name": "Analyzer Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a12c6054-73e0-466e-a62e-3d7ce412524d",
+      "name": "Classify Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const init=$('Initialize Retry State').first().json; const attempt=$runIndex+1; const status=Number($json.statusCode??$json.status??0); const network=!status||Boolean($json.error); const transient=network||[408,425,429,500,502,503,504].includes(status); const retry=Boolean(init.retry_safe)&&transient&&attempt<Number(init.max_attempts); const retryAfter=Number($json.headers?.['retry-after']??0); const delayMs=Math.min(10000,retryAfter>0?retryAfter*1000:500*(2**(attempt-1))+Math.floor(Math.random()*250)); if(retry) return [{json:{method:init.method,url:init.url,retry_safe:init.retry_safe,operation:init.operation,attempt,should_retry:true,delay_ms:delayMs}}]; if(status>=400||network) return [{json:{ok:false,status,attempts:attempt,error:status===409?'SUPPRESSED_OR_CONFLICT':'ANALYZER_REQUEST_FAILED',message:'Analyzer isteği tamamlanamadı; hassas yanıt ayrıntıları gizlendi.'}}]; return [{json:{...($json.body??$json),retry:{attempts:attempt}}}];"
+      }
+    },
+    {
+      "id": "bb02a1c7-34ea-4978-b0fe-f16d87728a86",
+      "name": "Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "retry",
+              "leftValue": "={{ $json.should_retry }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e286cfb2-41ce-438a-adc7-08ac6a84dbfd",
+      "name": "Bounded Backoff",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        -80
+      ],
+      "parameters": {
+        "amount": "={{ $json.delay_ms / 1000 }}",
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "44eed84d-0eb1-4d8b-ab95-05ad3eae6358",
+      "name": "Increment Attempt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        -80
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "attempt",
+              "name": "attempt",
+              "type": "number",
+              "value": "={{ $json.attempt + 1 }}"
+            }
+          ]
+        },
+        "options": {
+          "includeOtherFields": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Called by PitchTrace Workflow": {
+      "main": [
+        [
+          {
+            "node": "Initialize Retry State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Retry State": {
+      "main": [
+        [
+          {
+            "node": "Analyzer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyzer Request": {
+      "main": [
+        [
+          {
+            "node": "Classify Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Retry": {
+      "main": [
+        [
+          {
+            "node": "Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry?": {
+      "main": [
+        [
+          {
+            "node": "Bounded Backoff",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Bounded Backoff": {
+      "main": [
+        [
+          {
+            "node": "Increment Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Attempt": {
+      "main": [
+        [
+          {
+            "node": "Analyzer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "b1144cea-858a-492d-8fa7-7267a781b255"
+}

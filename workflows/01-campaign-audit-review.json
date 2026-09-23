@@ -211,22 +211,30 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audits' }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "{}",
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "POST",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audits' }}",
+            "retry_safe": true,
+            "operation": "Queue Campaign Audits"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
         "options": {
-          "timeout": 10000
+          "waitForSubWorkflow": true
         }
       },
       "id": "21a65f6c-cf71-450b-82d1-1483d49c411e",
       "name": "Queue Campaign Audits",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         -60,
         -100
@@ -258,17 +266,30 @@
     },
     {
       "parameters": {
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audit-progress' }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "GET",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audit-progress' }}",
+            "retry_safe": true,
+            "operation": "Get Audit Progress"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
         "options": {
-          "timeout": 10000
+          "waitForSubWorkflow": true
         }
       },
       "id": "e84d23ee-5a58-493a-97e6-86b31ea70076",
       "name": "Get Audit Progress",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         380,
         -100
@@ -401,17 +422,30 @@
     },
     {
       "parameters": {
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/context?company_id=' + $json.company_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "GET",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/context?company_id=' + $json.company_id }}",
+            "retry_safe": true,
+            "operation": "Get Draft Context"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
         "options": {
-          "timeout": 10000
+          "waitForSubWorkflow": true
         }
       },
       "id": "25e21c1c-654f-4e87-a53d-bfdca20fe198",
       "name": "Get Draft Context",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         1040,
         -180
@@ -455,18 +489,30 @@
     },
     {
       "parameters": {
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $('Build Deterministic Evidence Draft').first().json.artifact_id + '/preview-access' }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {
-          "timeout": 10000
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
         },
-        "method": "POST"
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "POST",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $('Build Deterministic Evidence Draft').first().json.artifact_id + '/preview-access' }}",
+            "retry_safe": true,
+            "operation": "Request Short-Lived Preview Access"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
       },
       "id": "7276a2fe-55bc-44a3-8e86-ad49a799ab68",
       "name": "Request Short-Lived Preview Access",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         1700,
         -180
@@ -479,7 +525,7 @@
         "jsonOutput": "[{\"fieldLabel\":\"review_decision\",\"fieldType\":\"radio\",\"fieldOptions\":{\"values\":[{\"option\":\"Onayla\"},{\"option\":\"Reddet\"}]},\"requiredField\":true},{\"fieldLabel\":\"rejection_note\",\"fieldType\":\"textarea\",\"requiredField\":false}]",
         "options": {
           "formTitle": "Kanıta bağlı taslak incelemesi",
-          "formDescription": "={{ '<p><strong>Firma:</strong> ' + $('Get Draft Context').first().json.company.name + ' (' + $('Get Draft Context').first().json.company.domain + ')</p><p><strong>Konu:</strong> ' + $('Build Deterministic Evidence Draft').first().json.output.subject + '</p><pre>' + $('Validate and Store Draft').first().json.body + '</pre><img alt=\"Audit screenshot; bağlantı süresi dolduysa sayfayı yenileyin\" style=\"max-width:375px;border:1px solid #ccc\" referrerpolicy=\"no-referrer\" src=\"' + $('Request Short-Lived Preview Access').first().json.preview_url + '\"><p>Görsel bağlantısı kısa ömürlüdür. Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>' }}",
+          "formDescription": "={{ '<p><strong>Firma:</strong> ' + $('Get Draft Context').first().json.company.name + ' (' + $('Get Draft Context').first().json.company.domain + ')</p><p><strong>Konu:</strong> ' + $('Build Deterministic Evidence Draft').first().json.output.subject + '</p><pre>' + $('Validate and Store Draft').first().json.body + '</pre><img alt=\"Audit screenshot; bağlantı süresi dolduysa sayfayı yenileyin\" style=\"max-width:375px;border:1px solid #ccc\" referrerpolicy=\"no-referrer\" src=\"' + $('Request Short-Lived Preview Access').first().json.preview_url + '\"><p><strong>Önizleme bağlantısının süresi dolduysa</strong> <a target=\"_blank\" rel=\"noreferrer\" href=\"' + $('Request Short-Lived Preview Access').first().json.refresh_url + '\">aynı görsel için yeni güvenli önizleme isteyin</a>. Bu işlem onay, audit veya draft oluşturmaz.</p><p>Görsel bağlantısı kısa ömürlüdür. Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>' }}",
           "buttonLabel": "İnceleme kararını kaydet"
         }
       },

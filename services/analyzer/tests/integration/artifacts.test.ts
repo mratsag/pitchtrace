@@ -9,6 +9,8 @@ import { closePool, query } from '../../src/db/pool.js';
 import { buildServer } from '../../src/server.js';
 import { cleanupExpiredArtifacts } from '../../src/audit/artifact-cleanup.js';
 import { runAudit } from '../../src/audit/run-audit.js';
+import { chromium } from 'playwright';
+import { createPreviewToken } from '../../src/security/preview-token.js';
 import {
   createCampaign,
   createCompany,
@@ -29,7 +31,7 @@ describe('artifact erişimi ve saklama süresi', () => {
     await resetData();
     server = await startFixtureServer();
     app = await buildServer();
-    await app.ready();
+    await app.listen({host:'127.0.0.1',port:0});
   });
 
   after(async () => {
@@ -83,6 +85,11 @@ describe('artifact erişimi ve saklama süresi', () => {
     assert.equal(preview.headers['referrer-policy'], 'no-referrer');
     assert.equal(preview.headers['x-content-type-options'], 'nosniff');
     assert.equal(preview.headers['content-type'], 'image/png');
+    assert.match(body.refresh_url,/\/artifact-preview-refresh\//);
+    const refreshed=await app.inject({method:'GET',url:body.refresh_url});
+    assert.equal(refreshed.statusCode,302);
+    assert.match(String(refreshed.headers.location),/\/artifact-previews\//);
+    assert.notEqual(refreshed.headers.location,body.preview_url);
   });
 
   it('preview token başka artifact için yeniden kullanılamaz ve retention sonrası 404 verir', async () => {
@@ -97,6 +104,24 @@ describe('artifact erişimi ve saklama süresi', () => {
     assert.equal((await app.inject({method:'GET',url:`/artifact-previews/${changed}`})).statusCode, 401);
     await query("UPDATE pitchtrace.artifacts SET deleted_at=now() WHERE id=$1",[artifactId]);
     assert.equal((await app.inject({method:'GET',url:previewUrl})).statusCode, 404);
+  });
+
+  it('gerçek browser expired mesajını ve aynı artifact refresh akışını API key sızmadan işler',async()=>{
+    const {artifactId}=await auditWithScreenshot();
+    const grant=(await app.inject({method:'POST',url:`/artifacts/${artifactId}/preview-access`,headers:auth})).json();
+    const address=app.server.address(); assert.ok(address&&typeof address==='object');
+    const origin=`http://127.0.0.1:${address.port}`;
+    const expired=createPreviewToken(artifactId,Date.now()-config.previewTokenTtlSeconds*2000).token;
+    const browser=await chromium.launch({headless:true}); const page=await browser.newPage();
+    const requests:string[]=[]; page.on('request',r=>requests.push(r.url()));
+    try{
+      await page.setContent(`<img alt="Audit screenshot" src="${origin}/artifact-previews/${expired}"><p>Önizleme bağlantısının süresi doldu</p><a rel="noreferrer" href="${origin}${grant.refresh_url}">Yeni güvenli önizleme</a>`);
+      await page.getByText('Önizleme bağlantısının süresi doldu').waitFor();
+      assert.equal(await page.getByAltText('Audit screenshot').evaluate((e:HTMLImageElement)=>e.naturalWidth),0);
+      const response=await Promise.all([page.waitForResponse(r=>r.url().includes('/artifact-previews/')),page.getByRole('link',{name:'Yeni güvenli önizleme'}).click()]);
+      assert.equal(response[0].status(),200); assert.equal(response[0].headers()['content-type'],'image/png');
+      assert.ok(requests.every(u=>!u.includes(KEY))); assert.ok(requests.every(u=>!u.includes('/approval')));
+    }finally{await browser.close();}
   });
 
   it('bilinmeyen artifact 404 döner', async () => {
