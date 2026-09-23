@@ -20,7 +20,9 @@ jobs:
         run: bash scripts/smoke.sh
       - name: Show container logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.smoke.yml logs --no-color
+        run: |
+          export POSTGRES_PASSWORD=unused ANALYZER_API_KEY=unused PREVIEW_TOKEN_SECRET=unused SMOKE_POSTGRES_PASSWORD=unused SMOKE_API_KEY=unused
+          docker compose -f docker-compose.yml -f docker-compose.smoke.yml logs --no-color
 
   # Real n8n 2.39.10 executions in a disposable, Internet-isolated stack:
   # shared retry workflow under deterministic fault injection, and the real

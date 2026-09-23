@@ -4,6 +4,11 @@ set -eu
 export SMOKE_POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 export SMOKE_API_KEY="$(openssl rand -hex 24)"
 export PREVIEW_TOKEN_SECRET="$(openssl rand -hex 24)"
+# docker-compose.yml requires these for interpolation even though the smoke
+# services never use them. Fill them only when unset (e.g. in CI, where no
+# .env exists) with throwaway values.
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(openssl rand -hex 24)}"
+export ANALYZER_API_KEY="${ANALYZER_API_KEY:-$(openssl rand -hex 24)}"
 
 cleanup() {
   docker compose -f docker-compose.yml -f docker-compose.smoke.yml down --remove-orphans
