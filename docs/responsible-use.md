@@ -19,4 +19,3 @@ PitchTrace is for small, deliberate, evidence-linked review—not bulk spam.
 This document is operational guidance, not a legal guarantee of KVKK, İYS,
 GDPR, ePrivacy, CAN-SPAM, or any other regime. Operators must obtain qualified
 advice for their jurisdiction and use case.
-
