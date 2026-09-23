@@ -33,6 +33,8 @@ export const PAGE_LIMIT_CEILING = 5;
 export const AUDIT_CONCURRENCY_CEILING = 2;
 /** Domain başına minimum istek aralığı (üretim varsayılanı). */
 export const PER_DOMAIN_MIN_INTERVAL_DEFAULT_MS = 1_000;
+export const PREVIEW_TTL_DEFAULT_SECONDS = 600;
+export const PREVIEW_TTL_MAX_SECONDS = 900;
 
 /**
  * Performans eşiklerinin ÜRETİM varsayılanları (docs/design §7.3).
@@ -65,6 +67,14 @@ export const config = {
 
   artifactRoot: path.resolve(str('ARTIFACT_ROOT', '/data')),
   artifactRetentionDays: int('ARTIFACT_RETENTION_DAYS', 30),
+  previewTokenSecret: str('PREVIEW_TOKEN_SECRET', ''),
+  previewTokenTtlSeconds: Math.min(
+    Math.max(int('PREVIEW_TOKEN_TTL_SECONDS', PREVIEW_TTL_DEFAULT_SECONDS), 60),
+    PREVIEW_TTL_MAX_SECONDS,
+  ),
+  publicBaseUrl: str('PUBLIC_BASE_URL', ''),
+  auditEnabled: bool('AUDIT_ENABLED', true),
+  draftExportEnabled: bool('DRAFT_EXPORT_ENABLED', true),
 
   /** Güvenlik limitleri — docs/design §2.5 */
   navTimeoutMs: int('NAV_TIMEOUT_MS', 20_000),
@@ -131,6 +141,14 @@ export const MOBILE_VIEWPORT = { width: 375, height: 812 } as const;
 export function assertRuntimeConfig(): void {
   if (!config.databaseUrl) throw new Error('DATABASE_URL is required');
   if (!config.apiKey) throw new Error('ANALYZER_API_KEY is required');
+  if (process.env.NODE_ENV === 'production') {
+    if (config.apiKey.startsWith('change-me') || config.apiKey.length < 32) {
+      throw new Error('ANALYZER_API_KEY must be a non-placeholder secret of at least 32 characters');
+    }
+    if (!config.previewTokenSecret || config.previewTokenSecret.startsWith('change-me') || config.previewTokenSecret.length < 32) {
+      throw new Error('PREVIEW_TOKEN_SECRET must be a non-placeholder secret of at least 32 characters');
+    }
+  }
   if (config.ssrfAllowLoopback && process.env.NODE_ENV === 'production') {
     throw new Error('SSRF_ALLOW_LOOPBACK must not be enabled in production');
   }

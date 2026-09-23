@@ -9,6 +9,7 @@ export async function campaignAuditRoutes(app:FastifyInstance):Promise<void>{
   app.post<{Params:{id:string};Body?:{page_limit?:number}}>('/campaigns/:id/audits',{
     schema:{params:{type:'object',required:['id'],properties:{id:{type:'string',format:'uuid'}}},body:{type:'object',additionalProperties:false,properties:{page_limit:{type:'integer',minimum:1,maximum:5}}}},
   },async(request,reply)=>{
+    if(!config.auditEnabled)return reply.code(503).send({error:'AUDIT_DISABLED'});
     const client=await getPool().connect();
     try{
       await client.query('BEGIN');

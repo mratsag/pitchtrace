@@ -22,6 +22,8 @@ export async function campaignRoutes(app: FastifyInstance): Promise<void> {
       city: string;
       language?: string;
       min_score?: number;
+      max_companies?: number;
+      page_limit?: number;
       service_fit?: Record<string, number>;
     };
   }>(
@@ -38,6 +40,8 @@ export async function campaignRoutes(app: FastifyInstance): Promise<void> {
             city: { type: 'string', minLength: 1, maxLength: 120 },
             language: { type: 'string', enum: ['tr', 'en'] },
             min_score: { type: 'integer', minimum: 0, maximum: 100 },
+            max_companies: { type: 'integer', minimum: 1, maximum: 20 },
+            page_limit: { type: 'integer', minimum: 1, maximum: 5 },
             service_fit: {
               type: 'object',
               additionalProperties: { type: 'number', minimum: 0, maximum: 20 },
@@ -47,10 +51,10 @@ export async function campaignRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const { name, sector, city, language, min_score, service_fit } = request.body;
+      const { name, sector, city, language, min_score, max_companies, page_limit, service_fit } = request.body;
       const result = await query<CampaignRow>(
-        `INSERT INTO pitchtrace.campaigns (name, sector, city, language, min_score, service_fit)
-         VALUES ($1,$2,$3,COALESCE($4,'tr'),COALESCE($5,70),COALESCE($6::jsonb,'{}'::jsonb))
+        `INSERT INTO pitchtrace.campaigns (name, sector, city, language, min_score, max_companies, page_limit, service_fit)
+         VALUES ($1,$2,$3,COALESCE($4,'tr'),COALESCE($5,70),COALESCE($6,20),COALESCE($7,5),COALESCE($8::jsonb,'{}'::jsonb))
          RETURNING id, name, sector, city, language, page_limit, min_score, max_companies,
                    service_fit`,
         [
@@ -59,6 +63,8 @@ export async function campaignRoutes(app: FastifyInstance): Promise<void> {
           city,
           language ?? null,
           min_score ?? null,
+          max_companies ?? null,
+          page_limit ?? null,
           service_fit ? JSON.stringify(service_fit) : null,
         ],
       );

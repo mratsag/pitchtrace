@@ -70,6 +70,35 @@ describe('artifact erişimi ve saklama süresi', () => {
     assert.equal(res.statusCode, 401);
   });
 
+  it('kısa ömürlü preview URL API anahtarını açığa çıkarmadan güvenli headerlarla çalışır', async () => {
+    const { artifactId } = await auditWithScreenshot();
+    const grant = await app.inject({ method:'POST', url:`/artifacts/${artifactId}/preview-access`, headers:auth });
+    assert.equal(grant.statusCode, 200);
+    const body = grant.json();
+    assert.equal(body.artifact_id, artifactId);
+    assert.doesNotMatch(body.preview_url, /test-key|x-api-key/i);
+    const preview = await app.inject({ method:'GET', url:body.preview_url });
+    assert.equal(preview.statusCode, 200);
+    assert.equal(preview.headers['cache-control'], 'private, no-store');
+    assert.equal(preview.headers['referrer-policy'], 'no-referrer');
+    assert.equal(preview.headers['x-content-type-options'], 'nosniff');
+    assert.equal(preview.headers['content-type'], 'image/png');
+  });
+
+  it('preview token başka artifact için yeniden kullanılamaz ve retention sonrası 404 verir', async () => {
+    const { artifactId } = await auditWithScreenshot();
+    const grant = await app.inject({ method:'POST', url:`/artifacts/${artifactId}/preview-access`, headers:auth });
+    const previewUrl = grant.json().preview_url;
+    const token = previewUrl.split('/').at(-1);
+    assert.ok(token);
+    const decoded = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString('utf8'));
+    decoded.artifact_id = '00000000-0000-4000-8000-000000000000';
+    const changed = `${Buffer.from(JSON.stringify(decoded)).toString('base64url')}.${token.split('.')[1]}`;
+    assert.equal((await app.inject({method:'GET',url:`/artifact-previews/${changed}`})).statusCode, 401);
+    await query("UPDATE pitchtrace.artifacts SET deleted_at=now() WHERE id=$1",[artifactId]);
+    assert.equal((await app.inject({method:'GET',url:previewUrl})).statusCode, 404);
+  });
+
   it('bilinmeyen artifact 404 döner', async () => {
     const res = await app.inject({
       method: 'GET',

@@ -36,8 +36,8 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 ## Not completed
 
-- The remaining four planned specialized n8n workflows and production pilot UI hardening.
-- Contact discovery persistence, dashboard, and the 50-company pilot.
+- The remaining four planned specialized n8n workflows and a public production deployment.
+- Contact discovery persistence, dashboard, and a real-company pilot.
 - Automatic email sending is intentionally out of scope for v0.1.
 
 ## Responsible use
@@ -170,7 +170,7 @@ Active and previously completed audits are not duplicated. Explicit domain suppr
 
 ## API overview
 
-- `GET /healthz`
+- `GET /livez`, `GET /readyz` (public, sanitized)
 - `POST /campaigns`
 - `POST /campaigns/{id}/companies`
 - `POST /campaigns/{id}/companies/import`
@@ -180,13 +180,14 @@ Active and previously completed audits are not duplicated. Explicit domain suppr
 - `GET /audits/{id}`
 - `POST /audits/{id}/score`
 - `GET /artifacts/{id}`
+- `POST /artifacts/{id}/preview-access` (authenticated) and `GET /artifact-previews/{token}` (short-lived)
 - `GET /drafts/context?company_id=…`
 - `POST /drafts`
 - `POST /drafts/{id}/approval`
 - `GET /drafts/{id}/export?format=eml`
 - `POST /suppression`
 
-All endpoints except `/healthz` require `X-API-Key`.
+All endpoints except liveness/readiness and the narrow signed preview route require `X-API-Key`.
 
 ## Documentation
 
@@ -196,6 +197,9 @@ All endpoints except `/healthz` require `X-API-Key`.
 - [n8n installation](docs/n8n-installation.md)
 - [n8n workflow guide](docs/n8n-workflows.md)
 - [Responsible use](docs/responsible-use.md)
+- [Architecture](docs/architecture.md)
+- [Production preparation](deploy/README.md)
+- [Pilot guide](docs/pilot-guide.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

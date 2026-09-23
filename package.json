@@ -1,0 +1,9 @@
+{
+  "name": "pitchtrace-operations",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:workflows": "node --test tests/workflows/*.test.mjs",
+    "pilot:check": "node scripts/pilot-check.mjs"
+  }
+}

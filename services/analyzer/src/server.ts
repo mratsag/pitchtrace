@@ -9,13 +9,14 @@ import { suppressionRoutes } from './routes/suppression.js';
 import { importRoutes } from './routes/imports.js';
 import { campaignAuditRoutes } from './routes/campaign-audits.js';
 
-const PUBLIC_PATHS = new Set(['/healthz']);
+const PUBLIC_PATHS = new Set(['/healthz', '/livez', '/readyz', '/artifact-previews/:token']);
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
     bodyLimit: 1 * 1024 * 1024,
     trustProxy: false,
+    routerOptions: { maxParamLength: 2048 },
   });
 
   app.addHook('onRequest', async (request, reply) => {
@@ -28,7 +29,8 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   app.addContentTypeParser(/^multipart\/form-data(?:;.*)?$/i,{parseAs:'buffer',bodyLimit:256*1024},(_request,body,done)=>done(null,body));
 
-  app.get('/healthz', async () => {
+  app.get('/livez', async () => ({ status: 'ok' }));
+  const readiness = async (_request: unknown, reply: { code: (n:number)=>{send:(v:unknown)=>unknown} }) => {
     let db = 'down';
     let queueDepth = -1;
     try {
@@ -40,8 +42,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     } catch {
       db = 'down';
     }
-    return { status: db === 'up' ? 'ok' : 'degraded', db, queue_depth: queueDepth, version: config.version };
-  });
+    const body = { status: db === 'up' ? 'ok' : 'degraded', db, checks: { database: db, artifact_retention: config.artifactRetentionDays > 0 ? 'ok' : 'down' }, queue_depth: queueDepth };
+    return db === 'up' ? body : reply.code(503).send(body);
+  };
+  app.get('/healthz', readiness);
+  app.get('/readyz', readiness);
 
   await app.register(campaignRoutes);
   await app.register(auditRoutes);

@@ -48,10 +48,10 @@ test('critical analyzer endpoints are real and use only the internal analyzer or
   const config = nodes.get('Workflow Config');
   const values = config.parameters.assignments.assignments;
   assert.equal(values.find((x) => x.name === 'analyzerBaseUrl').value, 'http://analyzer:8080');
-  for (const endpoint of ['/campaigns', '/companies/import', '/audits', '/audit-progress', '/drafts/context', '/drafts', '/approval', '/export?format=eml', '/artifacts/']) {
+  for (const endpoint of ['/campaigns', '/companies/import', '/audits', '/audit-progress', '/drafts/context', '/drafts', '/approval', '/export?format=eml', '/preview-access']) {
     assert.ok(source.includes(endpoint), `missing endpoint ${endpoint}`);
   }
-  assert.equal(source.match(/http:\/\/analyzer:8080/g)?.length, 2, 'main flow config plus isolated preview trigger');
+  assert.equal(source.match(/http:\/\/analyzer:8080/g)?.length, 1, 'only the central internal analyzer origin is allowed');
 });
 
 test('production polling is bounded at 30 seconds and 120 attempts', () => {
@@ -73,14 +73,15 @@ test('human gates dominate queueing and approval; rejection never calls approval
   assert.ok(reachable('Record Explicit Approval').has('Export Approved EML'));
 });
 
-test('screenshot preview accepts only a UUID and returns controlled artifact binary', () => {
-  const fetch = nodes.get('Fetch Preview Artifact');
-  assert.match(fetch.parameters.url, /\/artifacts\//);
-  assert.equal(fetch.parameters.options.response.response.outputPropertyName, 'screenshot');
+test('screenshot preview uses an artifact-bound short-lived URL without exposing the API key', () => {
+  const fetch = nodes.get('Request Short-Lived Preview Access');
+  assert.match(fetch.parameters.url, /\/artifacts\/.*\/preview-access/);
+  assert.equal(fetch.parameters.method, 'POST');
   const review = nodes.get('Human Draft Review');
-  assert.match(review.parameters.options.formDescription, /pitchtrace-artifact-preview\?artifact_id=/);
-  assert.match(nodes.get('Validate Preview Artifact ID').parameters.jsCode, /\^\[0-9a-f\]/);
-  assert.equal(nodes.get('Return Controlled Screenshot').parameters.respondWith, 'binary');
+  assert.match(review.parameters.options.formDescription, /preview_url/);
+  assert.match(review.parameters.options.formDescription, /referrerpolicy=/);
+  assert.ok(!nodes.has('Controlled Screenshot Preview'));
+  assert.ok(!nodes.has('Fetch Preview Artifact'));
   assert.doesNotMatch(source, /data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]{100}/);
 });
 
