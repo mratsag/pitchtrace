@@ -13,3 +13,9 @@ services:
       - '127.0.0.1:${ANALYZER_HOST_PORT:-8080}:8080'
     environment:
       LOG_LEVEL: debug
+
+  n8n:
+    ports:
+      - '127.0.0.1:${N8N_HOST_PORT:-5678}:5678'
+    environment:
+      N8N_SECURE_COOKIE: 'false'

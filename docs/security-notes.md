@@ -29,6 +29,9 @@ boşlukları kaydeder. Tasarımdaki normatif kurallar için
 | CSV boyut/satır/hücre sınırları ve tek dosya alanı | `src/imports/` | `tests/integration/imports.test.ts` |
 | CSV formül öneki, bozuk UTF-8 ve bozuk tırnaklama reddi | `src/imports/csv.ts`, `src/routes/imports.ts` | aynı |
 | Import sırasında domain/e-posta suppression ve eşzamanlı dedupe | `src/routes/imports.ts` | aynı |
+| n8n ayrı PostgreSQL/volume izolasyonu ve profile opt-in | `docker-compose.yml` | Compose config + manuel smoke |
+| n8n telemetry/community packages/env erişimi kapalı | `docker-compose.yml` | workflow policy testi |
+| Workflow credential/secret/gönderim node'u ve insan kapısı politikası | `tests/workflows/workflow-policy.test.mjs` | aynı |
 
 Import ön kontrolü internet DNS'ine çıkmaz: protokol, URL kimlik bilgileri,
 yasaklı hostname'ler ve IP literal'leri mevcut SSRF kurallarıyla doğrulanır.
@@ -101,3 +104,7 @@ bağlıdır ve `measurement_window_ms` olarak kanıta yazılır.
    anlamına gelir; ölçüm sonuçları buna göre yorumlanmalıdır.
 5. **Domain başına hız sınırı süreç içidir.** API ve worker'lar ileride ayrı
    container'lara bölünürse bu sınır DB tabanlı bir kilide taşınmalıdır.
+6. **n8n execution verisi hassastır.** Form girdileri, import özetleri ve binary
+   screenshot execution kayıtlarında bulunabilir. Pruning açıktır; operatör yine
+   de erişimi sınırlamalı, yedekleri korumalı ve saklama süresini ihtiyaca göre
+   azaltmalıdır.

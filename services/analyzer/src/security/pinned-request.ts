@@ -85,8 +85,16 @@ function requestOne(url: URL, address: string, options: PinnedRequestOptions): P
       headers,
       servername: net.isIP(url.hostname) ? undefined : url.hostname,
       rejectUnauthorized: !options.ignoreHttpsErrors,
-      lookup: (_hostname, _lookupOptions, callback) => {
-        callback(null, address, net.isIP(address) || 4);
+      lookup: (_hostname, lookupOptions, callback) => {
+        const family = net.isIP(address) || 4;
+        // Node 24's HTTP client may request lookup({ all: true }) while doing
+        // automatic family selection. Returning the legacy scalar shape in
+        // that case makes the validated address appear as `undefined`.
+        if (lookupOptions.all) {
+          callback(null, [{ address, family }]);
+          return;
+        }
+        callback(null, address, family);
       },
     }, (res) => {
       const chunks: Buffer[] = [];

@@ -43,10 +43,10 @@ jobs:
       PERF_SETTLE_MS: '200'
       LOG_LEVEL: error
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -56,6 +56,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - name: Validate n8n workflow exports and policy
+        working-directory: .
+        run: node --test tests/workflows/*.test.mjs
       - name: Check committed whitespace
         working-directory: .
         run: git show --check --format= HEAD && git diff --check
