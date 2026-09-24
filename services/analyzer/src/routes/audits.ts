@@ -43,6 +43,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
+      if (!config.auditEnabled) return reply.code(503).send({ error: 'AUDIT_DISABLED' });
       const company = await query<CompanyRow>(
         `SELECT c.id, c.submitted_url, cam.page_limit
            FROM pitchtrace.companies c

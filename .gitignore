@@ -10,6 +10,9 @@ playwright-report/
 .cache/
 *.log
 *.eml
+*.dump
+*.tar.gz
+backups/
 
 # Artifact çıktıları (screenshot vb.) depoya girmez.
 data/

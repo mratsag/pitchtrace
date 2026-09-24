@@ -1,0 +1,10 @@
+pitchtrace.muratsag.online {
+  encode zstd gzip
+  request_body { max_size 2MB }
+  header { Strict-Transport-Security "max-age=31536000; includeSubDomains"; X-Content-Type-Options nosniff; Referrer-Policy no-referrer; -Server }
+  @preview path /artifact-previews/*
+  reverse_proxy @preview analyzer:8080 { transport http { read_timeout 30s } }
+  @previewRefresh path /artifact-preview-refresh/*
+  reverse_proxy @previewRefresh analyzer:8080 { transport http { read_timeout 30s } }
+  reverse_proxy n8n:5678 { transport http { read_timeout 10m } }
+}

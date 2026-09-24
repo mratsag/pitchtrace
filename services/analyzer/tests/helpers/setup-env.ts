@@ -16,6 +16,7 @@ function setDefault(name: string, value: string): void {
 setDefault('SSRF_ALLOW_LOOPBACK', '1');
 setDefault('SSRF_PIN_DNS', '0');
 setDefault('ANALYZER_API_KEY', 'test-key');
+setDefault('PREVIEW_TOKEN_SECRET', 'test-only-preview-secret-at-least-32-characters');
 setDefault(
   'DATABASE_URL',
   'postgres://pitchtrace:pitchtrace@127.0.0.1:5433/pitchtrace_test',

@@ -1,0 +1,73 @@
+{
+  "id": "5d0c3f9e-7a51-4d0b-9f2e-3c1a8e6b2f70",
+  "name": "TEST ONLY - PitchTrace Retry Harness",
+  "active": false,
+  "nodes": [
+    {
+      "id": "0b7f8f3a-51a2-4c38-9c55-6c2b86f1d101",
+      "name": "Runtime Test Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "7e0e4f55-8f2e-4c1e-a3a8-0d4c2f7b9a11",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pitchtrace-retry-harness",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "2c3d9a4e-6f7b-4d8c-8e9f-a0b1c2d3e4f5",
+      "name": "Run Shared Retry Workflow",
+      "onError": "continueRegularOutput",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [240, 0],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "={{ $json.body.method }}",
+            "url": "={{ 'http://analyzer:8080' + $json.body.path }}",
+            "retry_safe": "={{ $json.body.retry_safe === true }}",
+            "operation": "={{ 'runtime-test:' + $json.body.scenario }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b",
+      "name": "Harness Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0],
+      "parameters": {
+        "jsCode": "return [{ json: { result: $input.first().json, harness_execution_id: $execution.id } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Runtime Test Webhook": {
+      "main": [[{ "node": "Run Shared Retry Workflow", "type": "main", "index": 0 }]]
+    },
+    "Run Shared Retry Workflow": {
+      "main": [[{ "node": "Harness Result", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "8f1e2d3c-4b5a-4968-8776-655443322110"
+}

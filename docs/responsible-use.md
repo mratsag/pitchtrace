@@ -19,3 +19,8 @@ PitchTrace is for small, deliberate, evidence-linked review—not bulk spam.
 This document is operational guidance, not a legal guarantee of KVKK, İYS,
 GDPR, ePrivacy, CAN-SPAM, or any other regime. Operators must obtain qualified
 advice for their jurisdiction and use case.
+# Production and pilot controls
+
+Human approval is mandatory and produces only a downloadable `.eml`; it does not send email and must never be interpreted as `sent_manually`. Audit and draft/export kill switches must be enabled deliberately and disabled on complaints or unsafe behavior. Opt-outs are suppression events, not analytics events.
+
+Pilot reporting is aggregate and excludes personal email addresses. The operator is the sender and remains responsible for lawful basis, transparency, security, KVKK, İYS and any other applicable rules. PitchTrace and its documentation are not a legal compliance guarantee.

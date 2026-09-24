@@ -1,0 +1,20 @@
+pilot:
+  name: example-pilot
+  sector: example-sector
+  city: example-city
+  maximum_companies: 20
+  audit_only: true
+  automatic_sending: false
+scoring:
+  minimum_review_score: 50
+crawler:
+  maximum_pages: 5
+  requests_per_domain_per_second: 1
+outreach:
+  require_human_approval: true
+  export_eml_only: true
+  maximum_drafts_per_day: 10
+  audit_enabled: false
+  draft_export_enabled: false
+  suppress_domains: true
+  suppress_emails: true

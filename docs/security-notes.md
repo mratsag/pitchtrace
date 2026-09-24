@@ -25,6 +25,8 @@ boşlukları kaydeder. Tasarımdaki normatif kurallar için
 | Varsayılan compose'da host'a port açılmaması | `docker-compose.yml` | — |
 | Artifact indirmede kök dışına çıkan yolun reddi (400) | `src/routes/artifacts.ts` | `tests/integration/artifacts.test.ts` |
 | Saklama süresi dolan screenshot'ların silinmesi | `src/audit/artifact-cleanup.ts` | aynı |
+| Artifact-bound HMAC preview token, 10 dakika TTL ve no-store/referrer headers | `src/security/preview-token.ts`, `src/routes/artifacts.ts` | `preview-token.test.ts`, `artifacts.test.ts` |
+| Artifact-bound refresh handle; yeni read token üretir, artifact seçemez | aynı | aynı |
 | Kişi adı taşıyan e-postaların kanıta YAZILMAMASI | `src/audit/checks/site.ts` | `tests/unit/site-checks.test.ts` |
 | CSV boyut/satır/hücre sınırları ve tek dosya alanı | `src/imports/` | `tests/integration/imports.test.ts` |
 | CSV formül öneki, bozuk UTF-8 ve bozuk tırnaklama reddi | `src/imports/csv.ts`, `src/routes/imports.ts` | aynı |

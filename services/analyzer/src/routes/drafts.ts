@@ -4,6 +4,7 @@ import { presentFinding, type ContextFinding } from '../draft/context.js';
 import { buildEml } from '../draft/eml.js';
 import type { DraftOutput } from '../draft/schema.js';
 import { validateDraft, type ValidationContext, type ValidationFinding } from '../draft/validator.js';
+import { config } from '../config.js';
 
 interface DraftBase {
   audit_id: string; company_id: string; contact_id: string; email: string; company_name: string;
@@ -118,6 +119,7 @@ export async function draftRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Params:{id:string}; Querystring:{format?:string} }>('/drafts/:id/export', async (request, reply) => {
+    if(!config.draftExportEnabled)return reply.code(503).send({error:'DRAFT_EXPORT_DISABLED'});
     if (request.query.format && request.query.format !== 'eml') return reply.code(400).send({error:'UNSUPPORTED_FORMAT'});
     const result=await query<{company_id:string;email:string;normalized_domain:string;subject:string;body:string;status:string}>(
       `SELECT d.company_id,ct.email::text,c.normalized_domain::text,d.subject,d.body,d.status FROM pitchtrace.email_drafts d JOIN pitchtrace.contacts ct ON ct.id=d.contact_id JOIN pitchtrace.companies c ON c.id=d.company_id WHERE d.id=$1`,[request.params.id]);

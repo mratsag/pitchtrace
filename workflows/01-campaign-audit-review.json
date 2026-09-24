@@ -7,30 +7,74 @@
         "authentication": "n8nUserAuth",
         "requireExecuteAccess": true,
         "formTitle": "PitchTrace kampanya denetimi",
-        "formDescription": "Kampanya bilgilerini ve en fazla 50 satırlık CSV dosyasını yükleyin. Hiçbir e-posta otomatik gönderilmez.",
-        "formFields": { "values": [
-          { "fieldLabel": "campaign_name", "fieldType": "text", "requiredField": true },
-          { "fieldLabel": "sector", "fieldType": "text", "requiredField": true },
-          { "fieldLabel": "city", "fieldType": "text", "requiredField": true },
-          { "fieldLabel": "csv", "fieldType": "file", "requiredField": true, "acceptFileTypes": ".csv", "multipleFiles": false }
-        ]},
+        "formDescription": "Kampanya bilgilerini ve en fazla 20 satırlık CSV dosyasını yükleyin. Hiçbir e-posta otomatik gönderilmez.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "campaign_name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "sector",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "city",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "csv",
+              "fieldType": "file",
+              "requiredField": true,
+              "acceptFileTypes": ".csv",
+              "multipleFiles": false
+            }
+          ]
+        },
         "responseMode": "lastNode",
-        "options": { "path": "pitchtrace-campaign-review", "buttonLabel": "CSV'yi doğrula", "appendAttribution": false }
+        "options": {
+          "path": "pitchtrace-campaign-review",
+          "buttonLabel": "CSV'yi doğrula",
+          "appendAttribution": false
+        }
       },
       "id": "08c48b0f-6aca-47fa-9eef-1f8f58961d56",
       "name": "Campaign and CSV Intake",
       "type": "n8n-nodes-base.formTrigger",
       "typeVersion": 2.6,
-      "position": [-1600, 0],
+      "position": [
+        -1600,
+        0
+      ],
       "webhookId": "pitchtrace-campaign-review"
     },
     {
       "parameters": {
-        "assignments": { "assignments": [
-          { "id": "base", "name": "analyzerBaseUrl", "value": "http://analyzer:8080", "type": "string" },
-          { "id": "seconds", "name": "pollSeconds", "value": 30, "type": "number" },
-          { "id": "attempts", "name": "pollMaxAttempts", "value": 120, "type": "number" }
-        ]},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "base",
+              "name": "analyzerBaseUrl",
+              "value": "http://analyzer:8080",
+              "type": "string"
+            },
+            {
+              "id": "seconds",
+              "name": "pollSeconds",
+              "value": 30,
+              "type": "number"
+            },
+            {
+              "id": "attempts",
+              "name": "pollMaxAttempts",
+              "value": 120,
+              "type": "number"
+            }
+          ]
+        },
         "includeOtherFields": true,
         "options": {}
       },
@@ -38,7 +82,10 @@
       "name": "Workflow Config",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [-1380, 0],
+      "position": [
+        -1380,
+        0
+      ],
       "notes": "Single configuration point. Attach the PitchTrace Analyzer Header Auth credential to every HTTP Request node."
     },
     {
@@ -50,22 +97,34 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({name: $('Campaign and CSV Intake').first().json.campaign_name, sector: $('Campaign and CSV Intake').first().json.sector, city: $('Campaign and CSV Intake').first().json.city, min_score: 0}) }}",
-        "options": { "timeout": 10000 }
+        "body": "={{ JSON.stringify({name: $('Campaign and CSV Intake').first().json.campaign_name, sector: $('Campaign and CSV Intake').first().json.sector, city: $('Campaign and CSV Intake').first().json.city, min_score: 50, max_companies: 20, page_limit: 5}) }}",
+        "options": {
+          "timeout": 10000
+        }
       },
       "id": "995807a7-e109-42ee-9336-8cc9dd455af5",
       "name": "Create Campaign",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [-1160, 0]
+      "position": [
+        -1160,
+        0
+      ]
     },
     {
-      "parameters": { "mode": "combine", "combineBy": "combineByPosition", "options": {} },
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
       "id": "93edab77-2d7a-489f-a7a7-cea756801544",
       "name": "Campaign Plus CSV",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
-      "position": [-940, 0]
+      "position": [
+        -940,
+        0
+      ]
     },
     {
       "parameters": {
@@ -75,14 +134,27 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "contentType": "multipart-form-data",
-        "bodyParameters": { "parameters": [ { "parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "csv" } ] },
-        "options": { "timeout": 15000 }
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "csv"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "107d8717-f223-4896-a35b-17cfc508daed",
       "name": "Import CSV",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [-720, 0]
+      "position": [
+        -720,
+        0
+      ]
     },
     {
       "parameters": {
@@ -99,121 +171,352 @@
       "name": "Confirm Audit Start",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [-500, 0]
+      "position": [
+        -500,
+        0
+      ]
     },
     {
-      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "audit-approved", "leftValue": "={{ $json.audit_decision }}", "rightValue": "Başlat", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "options": {} },
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "audit-approved",
+              "leftValue": "={{ $json.audit_decision }}",
+              "rightValue": "Başlat",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
       "id": "32f81da9-c5fa-4925-8ae8-15016858376b",
       "name": "Audit Explicitly Approved?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [-280, 0]
+      "position": [
+        -280,
+        0
+      ]
     },
     {
-      "parameters": { "method": "POST", "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audits' }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "{}", "options": { "timeout": 10000 } },
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "POST",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audits' }}",
+            "retry_safe": true,
+            "operation": "Queue Campaign Audits"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
       "id": "21a65f6c-cf71-450b-82d1-1483d49c411e",
       "name": "Queue Campaign Audits",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [-60, -100]
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -60,
+        -100
+      ]
     },
     {
-      "parameters": { "assignments": { "assignments": [ { "id": "counter", "name": "pollAttempt", "value": 0, "type": "number" } ] }, "includeOtherFields": true, "options": {} },
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "counter",
+              "name": "pollAttempt",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
       "id": "09fad47e-29bd-4ca6-a229-307915dcf524",
       "name": "Initialize Poll Counter",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [160, -100]
+      "position": [
+        160,
+        -100
+      ]
     },
     {
-      "parameters": { "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audit-progress' }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "timeout": 10000 } },
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "GET",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/audit-progress' }}",
+            "retry_safe": true,
+            "operation": "Get Audit Progress"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
       "id": "e84d23ee-5a58-493a-97e6-86b31ea70076",
       "name": "Get Audit Progress",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [380, -100]
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        380,
+        -100
+      ]
     },
     {
-      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "terminal", "leftValue": "={{ $json.terminal }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } } ], "combinator": "and" }, "options": {} },
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "terminal",
+              "leftValue": "={{ $json.terminal }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
       "id": "bb81ecdb-b287-4119-883a-6a91477cb073",
       "name": "All Audits Terminal?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [600, -100]
+      "position": [
+        600,
+        -100
+      ]
     },
     {
-      "parameters": { "jsCode": "return [{json: {...$json, pollAttempt: $runIndex + 1}}];" },
+      "parameters": {
+        "jsCode": "return [{json: {...$json, pollAttempt: $runIndex + 1}}];"
+      },
       "id": "1f0dd091-c05b-4fc8-b67a-6f643a040c5d",
       "name": "Increment Poll Counter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [820, 80]
+      "position": [
+        820,
+        80
+      ]
     },
     {
-      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "timeout", "leftValue": "={{ $json.pollAttempt }}", "rightValue": "={{ $('Workflow Config').first().json.pollMaxAttempts }}", "operator": { "type": "number", "operation": "gte" } } ], "combinator": "and" }, "options": {} },
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "timeout",
+              "leftValue": "={{ $json.pollAttempt }}",
+              "rightValue": "={{ $('Workflow Config').first().json.pollMaxAttempts }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
       "id": "9652b190-5ad0-4847-bd2b-d04e1d282340",
       "name": "Polling Budget Exhausted?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1040, 80]
+      "position": [
+        1040,
+        80
+      ]
     },
     {
-      "parameters": { "amount": "={{ $('Workflow Config').first().json.pollSeconds }}", "unit": "seconds" },
+      "parameters": {
+        "amount": "={{ $('Workflow Config').first().json.pollSeconds }}",
+        "unit": "seconds"
+      },
       "id": "a4559187-5d81-4259-8586-64d2df0023ed",
       "name": "Wait Before Next Poll",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1260, 180],
+      "position": [
+        1260,
+        180
+      ],
       "webhookId": "pitchtrace-poll-wait"
     },
     {
-      "parameters": { "operation": "completion", "respondWith": "text", "completionTitle": "Audit zaman aşımı", "completionMessage": "Auditler yaklaşık 60 dakikalık bekleme bütçesinde terminal duruma ulaşmadı. Kuyruk PostgreSQL'de korunur; daha sonra progress endpoint'inden devam edin.", "options": {} },
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Audit zaman aşımı",
+        "completionMessage": "Auditler yaklaşık 60 dakikalık bekleme bütçesinde terminal duruma ulaşmadı. Kuyruk PostgreSQL'de korunur; daha sonra progress endpoint'inden devam edin.",
+        "options": {}
+      },
       "id": "cb05600b-e438-4546-b324-2bc5ab5eb29f",
       "name": "Audit Timeout Result",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [1260, 20]
+      "position": [
+        1260,
+        20
+      ]
     },
     {
-      "parameters": { "jsCode": "const imported = $('Import CSV').first().json.results.filter(r => r.status === 'imported' && r.company_id); if (!imported.length) throw new Error('No eligible imported company is available for review'); return [{json:{company_id: imported[0].company_id, progress:$json}}];" },
+      "parameters": {
+        "jsCode": "const imported = $('Import CSV').first().json.results.filter(r => r.status === 'imported' && r.company_id); if (!imported.length) throw new Error('No eligible imported company is available for review'); return [{json:{company_id: imported[0].company_id, progress:$json}}];"
+      },
       "id": "902cff28-976f-421c-9245-caac921242ef",
       "name": "Select Review Company",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [820, -180]
+      "position": [
+        820,
+        -180
+      ]
     },
     {
-      "parameters": { "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/context?company_id=' + $json.company_id }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "timeout": 10000 } },
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "GET",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/context?company_id=' + $json.company_id }}",
+            "retry_safe": true,
+            "operation": "Get Draft Context"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
       "id": "25e21c1c-654f-4e87-a53d-bfdca20fe198",
       "name": "Get Draft Context",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [1040, -180]
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        -180
+      ]
     },
     {
-      "parameters": { "jsCode": "const context=$json; const finding=context.findings.find(f=>f.outreach_eligible && f.confidence==='observed'); if(!finding) throw new Error('No outreach-eligible observed finding is available'); const output={language:context.language,subject:'Web siteniz hakkında kısa bir teknik gözlem',greeting:'Merhaba,',claims:[{text:'Kayıtlı web sitesi bulgusu tarafımızca doğrulandı.',claim_type:'assertion',confidence:'observed',finding_ids:[finding.id]},{text:'Bu bulguyu birlikte incelemek ister misiniz?',claim_type:'question',confidence:'observed',finding_ids:[]}],closing:'İyi çalışmalar.'}; const artifact=context.findings.find(f=>f.artifact_id)?.artifact_id ?? null; return [{json:{context,output,artifact_id:artifact}}];" },
+      "parameters": {
+        "jsCode": "const context=$json; const finding=context.findings.find(f=>f.outreach_eligible && f.confidence==='observed'); if(!finding) throw new Error('No outreach-eligible observed finding is available'); const output={language:context.language,subject:'Web siteniz hakkında kısa bir teknik gözlem',greeting:'Merhaba,',claims:[{text:'Kayıtlı web sitesi bulgusu tarafımızca doğrulandı.',claim_type:'assertion',confidence:'observed',finding_ids:[finding.id]},{text:'Bu bulguyu birlikte incelemek ister misiniz?',claim_type:'question',confidence:'observed',finding_ids:[]}],closing:'İyi çalışmalar.'}; const artifact=context.findings.find(f=>f.artifact_id)?.artifact_id ?? null; return [{json:{context,output,artifact_id:artifact}}];"
+      },
       "id": "03f22473-5686-4534-b4b4-dfb095a350c9",
       "name": "Build Deterministic Evidence Draft",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1260, -180]
+      "position": [
+        1260,
+        -180
+      ]
     },
     {
-      "parameters": { "method": "POST", "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts' }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={{ JSON.stringify({audit_id:$json.context.audit_id, contact_id:$json.context.contact.id, output:$json.output}) }}", "options": { "timeout": 10000 } },
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({audit_id:$json.context.audit_id, contact_id:$json.context.contact.id, output:$json.output}) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
       "id": "7f0df130-50ac-4ae5-a6ef-62ce8a3606ab",
       "name": "Validate and Store Draft",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [1480, -180]
+      "position": [
+        1480,
+        -180
+      ]
     },
     {
-      "parameters": { "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $('Build Deterministic Evidence Draft').first().json.artifact_id }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "response": { "response": { "responseFormat": "file", "outputPropertyName": "screenshot" } }, "timeout": 10000 } },
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1a9fd477-eab9-4e4d-9e30-21b7358d0d12",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "method": "POST",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $('Build Deterministic Evidence Draft').first().json.artifact_id + '/preview-access' }}",
+            "retry_safe": true,
+            "operation": "Request Short-Lived Preview Access"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
       "id": "7276a2fe-55bc-44a3-8e86-ad49a799ab68",
-      "name": "Fetch Controlled Screenshot",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [1700, -180],
-      "continueOnFail": true
+      "name": "Request Short-Lived Preview Access",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1700,
+        -180
+      ]
     },
     {
       "parameters": {
@@ -222,7 +525,7 @@
         "jsonOutput": "[{\"fieldLabel\":\"review_decision\",\"fieldType\":\"radio\",\"fieldOptions\":{\"values\":[{\"option\":\"Onayla\"},{\"option\":\"Reddet\"}]},\"requiredField\":true},{\"fieldLabel\":\"rejection_note\",\"fieldType\":\"textarea\",\"requiredField\":false}]",
         "options": {
           "formTitle": "Kanıta bağlı taslak incelemesi",
-          "formDescription": "={{ '<p><strong>Firma:</strong> ' + $('Get Draft Context').first().json.company.name + ' (' + $('Get Draft Context').first().json.company.domain + ')</p><p><strong>Audit:</strong> completed · başarısız işler: ' + $('Get Audit Progress').last().json.failed + '</p><p><strong>Konu:</strong> ' + $('Build Deterministic Evidence Draft').first().json.output.subject + '</p><pre>' + $('Validate and Store Draft').first().json.body + '</pre><img alt=\"Audit screenshot\" style=\"max-width:375px;border:1px solid #ccc\" src=\"/webhook/pitchtrace-artifact-preview?artifact_id=' + $('Build Deterministic Evidence Draft').first().json.artifact_id + '\"><p>Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>' }}",
+          "formDescription": "={{ '<p><strong>Firma:</strong> ' + $('Get Draft Context').first().json.company.name + ' (' + $('Get Draft Context').first().json.company.domain + ')</p><p><strong>Konu:</strong> ' + $('Build Deterministic Evidence Draft').first().json.output.subject + '</p><pre>' + $('Validate and Store Draft').first().json.body + '</pre><img alt=\"Audit screenshot; bağlantının süresi dolduysa aşağıdaki yenileme bağlantısını kullanın\" style=\"max-width:375px;border:1px solid #ccc\" referrerpolicy=\"no-referrer\" src=\"' + $('Request Short-Lived Preview Access').first().json.preview_url + '\"><p><strong>Önizleme bağlantısının süresi dolduysa</strong> <a target=\"_blank\" rel=\"noreferrer\" href=\"' + $('Request Short-Lived Preview Access').first().json.refresh_url + '\">aynı görsel için yeni güvenli önizleme isteyin</a>. Bu işlem onay, audit veya draft oluşturmaz.</p><p>Görsel bağlantısı kısa ömürlüdür. Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>' }}",
           "buttonLabel": "İnceleme kararını kaydet"
         }
       },
@@ -230,121 +533,438 @@
       "name": "Human Draft Review",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [1920, -180],
-      "notes": "Runtime prototype renders analyzer-fetched binary as a data URI; the export contains no screenshot bytes or arbitrary URL."
+      "position": [
+        1920,
+        -180
+      ],
+      "notes": "Artifact-bound kısa ömürlü preview URL kullanılır; API anahtarı browsera verilmez."
     },
     {
-      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "conditions": [ { "id": "human-approved", "leftValue": "={{ $json.review_decision }}", "rightValue": "Onayla", "operator": { "type": "string", "operation": "equals" } } ], "combinator": "and" }, "options": {} },
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "human-approved",
+              "leftValue": "={{ $json.review_decision }}",
+              "rightValue": "Onayla",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
       "id": "b37638b2-123a-45aa-9c45-90c569113833",
       "name": "Human Approved Draft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2140, -180]
+      "position": [
+        2140,
+        -180
+      ]
     },
     {
-      "parameters": { "method": "POST", "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/approval' }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={{ JSON.stringify({decision:'approved',decided_by:'n8n-human-review'}) }}", "options": { "timeout": 10000 } },
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/approval' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({decision:'approved',decided_by:'n8n-human-review'}) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
       "id": "084e524c-7d14-4234-9f77-c69848932113",
       "name": "Record Explicit Approval",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [2360, -280]
+      "position": [
+        2360,
+        -280
+      ]
     },
     {
-      "parameters": { "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/export?format=eml' }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "response": { "response": { "responseFormat": "file", "outputPropertyName": "eml" } }, "timeout": 10000 } },
+      "parameters": {
+        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/export?format=eml' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "eml"
+            }
+          },
+          "timeout": 10000
+        }
+      },
       "id": "d004cb98-647d-41a2-aa2c-b32a8ed8ccb8",
       "name": "Export Approved EML",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [2580, -280]
+      "position": [
+        2580,
+        -280
+      ]
     },
     {
-      "parameters": { "operation": "completion", "respondWith": "returnBinary", "completionTitle": "Taslak onaylandı", "completionMessage": "Taslak onaylandı ve .eml dosyası hazırlandı. Herhangi bir e-posta otomatik gönderilmedi.", "inputDataFieldName": "eml", "options": {} },
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "returnBinary",
+        "completionTitle": "Taslak onaylandı",
+        "completionMessage": "Taslak onaylandı ve .eml dosyası hazırlandı. Herhangi bir e-posta otomatik gönderilmedi.",
+        "inputDataFieldName": "eml",
+        "options": {}
+      },
       "id": "543a1617-abbe-4bb9-a4f4-51670e8de438",
       "name": "Return EML Without Sending",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [2800, -280]
+      "position": [
+        2800,
+        -280
+      ]
     },
     {
-      "parameters": { "operation": "completion", "respondWith": "text", "completionTitle": "Taslak reddedildi", "completionMessage": "Taslak reddedildi. Approval endpoint'i çağrılmadı ve hiçbir .eml veya e-posta üretilmedi.", "options": {} },
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Taslak reddedildi",
+        "completionMessage": "Taslak reddedildi. Approval endpoint'i çağrılmadı ve hiçbir .eml veya e-posta üretilmedi.",
+        "options": {}
+      },
       "id": "313775ba-42e3-489e-9da4-8c87ac73fbce",
       "name": "Human Rejection Result",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [2360, -80]
+      "position": [
+        2360,
+        -80
+      ]
     },
     {
-      "parameters": { "operation": "completion", "respondWith": "text", "completionTitle": "Audit başlatılmadı", "completionMessage": "Kullanıcı audit başlatmayı onaylamadı. Kuyruğa iş eklenmedi.", "options": {} },
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Audit başlatılmadı",
+        "completionMessage": "Kullanıcı audit başlatmayı onaylamadı. Kuyruğa iş eklenmedi.",
+        "options": {}
+      },
       "id": "d6127850-4a2b-4f2b-a4a1-f46bdc34dcf4",
       "name": "Audit Rejected Result",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
-      "position": [-60, 120]
-    },
-    {
-      "parameters": { "httpMethod": "GET", "path": "pitchtrace-artifact-preview", "responseMode": "responseNode", "options": {} },
-      "id": "e46128fe-7e1e-40da-befe-4169c5e09a6a",
-      "name": "Controlled Screenshot Preview",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [1700, 160],
-      "webhookId": "671e5439-b74c-4ef4-b0a8-939ea55d507c"
-    },
-    {
-      "parameters": { "jsCode": "const id = String($json.query?.artifact_id ?? ''); if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new Error('Invalid artifact id'); return [{json:{artifact_id:id}}];" },
-      "id": "fae1c3b3-69cb-49c8-bf20-865d129b3ba6",
-      "name": "Validate Preview Artifact ID",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1920, 160]
-    },
-    {
-      "parameters": { "url": "={{ 'http://analyzer:8080/artifacts/' + $json.artifact_id }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "response": { "response": { "responseFormat": "file", "outputPropertyName": "screenshot" } }, "timeout": 10000 } },
-      "id": "ea2af35a-9166-4593-8926-3d12650aed9f",
-      "name": "Fetch Preview Artifact",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [2140, 160]
-    },
-    {
-      "parameters": { "respondWith": "binary", "responseDataSource": "set", "inputFieldName": "screenshot", "options": {} },
-      "id": "36df8477-76b1-4c26-971c-7cf4b31d39d6",
-      "name": "Return Controlled Screenshot",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [2360, 160]
+      "position": [
+        -60,
+        120
+      ]
     }
   ],
   "connections": {
-    "Campaign and CSV Intake": { "main": [[{ "node": "Workflow Config", "type": "main", "index": 0 }]] },
-    "Workflow Config": { "main": [[{ "node": "Create Campaign", "type": "main", "index": 0 }, { "node": "Campaign Plus CSV", "type": "main", "index": 0 }]] },
-    "Create Campaign": { "main": [[{ "node": "Campaign Plus CSV", "type": "main", "index": 1 }]] },
-    "Campaign Plus CSV": { "main": [[{ "node": "Import CSV", "type": "main", "index": 0 }]] },
-    "Import CSV": { "main": [[{ "node": "Confirm Audit Start", "type": "main", "index": 0 }]] },
-    "Confirm Audit Start": { "main": [[{ "node": "Audit Explicitly Approved?", "type": "main", "index": 0 }]] },
-    "Audit Explicitly Approved?": { "main": [[{ "node": "Queue Campaign Audits", "type": "main", "index": 0 }],[{ "node": "Audit Rejected Result", "type": "main", "index": 0 }]] },
-    "Queue Campaign Audits": { "main": [[{ "node": "Initialize Poll Counter", "type": "main", "index": 0 }]] },
-    "Initialize Poll Counter": { "main": [[{ "node": "Get Audit Progress", "type": "main", "index": 0 }]] },
-    "Get Audit Progress": { "main": [[{ "node": "All Audits Terminal?", "type": "main", "index": 0 }]] },
-    "All Audits Terminal?": { "main": [[{ "node": "Select Review Company", "type": "main", "index": 0 }],[{ "node": "Increment Poll Counter", "type": "main", "index": 0 }]] },
-    "Increment Poll Counter": { "main": [[{ "node": "Polling Budget Exhausted?", "type": "main", "index": 0 }]] },
-    "Polling Budget Exhausted?": { "main": [[{ "node": "Audit Timeout Result", "type": "main", "index": 0 }],[{ "node": "Wait Before Next Poll", "type": "main", "index": 0 }]] },
-    "Wait Before Next Poll": { "main": [[{ "node": "Get Audit Progress", "type": "main", "index": 0 }]] },
-    "Select Review Company": { "main": [[{ "node": "Get Draft Context", "type": "main", "index": 0 }]] },
-    "Get Draft Context": { "main": [[{ "node": "Build Deterministic Evidence Draft", "type": "main", "index": 0 }]] },
-    "Build Deterministic Evidence Draft": { "main": [[{ "node": "Validate and Store Draft", "type": "main", "index": 0 }]] },
-    "Validate and Store Draft": { "main": [[{ "node": "Fetch Controlled Screenshot", "type": "main", "index": 0 }]] },
-    "Fetch Controlled Screenshot": { "main": [[{ "node": "Human Draft Review", "type": "main", "index": 0 }]] },
-    "Human Draft Review": { "main": [[{ "node": "Human Approved Draft?", "type": "main", "index": 0 }]] },
-    "Human Approved Draft?": { "main": [[{ "node": "Record Explicit Approval", "type": "main", "index": 0 }],[{ "node": "Human Rejection Result", "type": "main", "index": 0 }]] },
-    "Record Explicit Approval": { "main": [[{ "node": "Export Approved EML", "type": "main", "index": 0 }]] },
-    "Export Approved EML": { "main": [[{ "node": "Return EML Without Sending", "type": "main", "index": 0 }]] }
-    ,"Controlled Screenshot Preview": { "main": [[{ "node": "Validate Preview Artifact ID", "type": "main", "index": 0 }]] }
-    ,"Validate Preview Artifact ID": { "main": [[{ "node": "Fetch Preview Artifact", "type": "main", "index": 0 }]] }
-    ,"Fetch Preview Artifact": { "main": [[{ "node": "Return Controlled Screenshot", "type": "main", "index": 0 }]] }
+    "Campaign and CSV Intake": {
+      "main": [
+        [
+          {
+            "node": "Workflow Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Config": {
+      "main": [
+        [
+          {
+            "node": "Create Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Campaign Plus CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Campaign": {
+      "main": [
+        [
+          {
+            "node": "Campaign Plus CSV",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Campaign Plus CSV": {
+      "main": [
+        [
+          {
+            "node": "Import CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Import CSV": {
+      "main": [
+        [
+          {
+            "node": "Confirm Audit Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Audit Start": {
+      "main": [
+        [
+          {
+            "node": "Audit Explicitly Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Explicitly Approved?": {
+      "main": [
+        [
+          {
+            "node": "Queue Campaign Audits",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Audit Rejected Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Campaign Audits": {
+      "main": [
+        [
+          {
+            "node": "Initialize Poll Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Poll Counter": {
+      "main": [
+        [
+          {
+            "node": "Get Audit Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audit Progress": {
+      "main": [
+        [
+          {
+            "node": "All Audits Terminal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All Audits Terminal?": {
+      "main": [
+        [
+          {
+            "node": "Select Review Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Increment Poll Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Poll Counter": {
+      "main": [
+        [
+          {
+            "node": "Polling Budget Exhausted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Polling Budget Exhausted?": {
+      "main": [
+        [
+          {
+            "node": "Audit Timeout Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Next Poll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Next Poll": {
+      "main": [
+        [
+          {
+            "node": "Get Audit Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Review Company": {
+      "main": [
+        [
+          {
+            "node": "Get Draft Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Draft Context": {
+      "main": [
+        [
+          {
+            "node": "Build Deterministic Evidence Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Deterministic Evidence Draft": {
+      "main": [
+        [
+          {
+            "node": "Validate and Store Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Store Draft": {
+      "main": [
+        [
+          {
+            "node": "Request Short-Lived Preview Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Draft Review": {
+      "main": [
+        [
+          {
+            "node": "Human Approved Draft?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Approved Draft?": {
+      "main": [
+        [
+          {
+            "node": "Record Explicit Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Human Rejection Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Explicit Approval": {
+      "main": [
+        [
+          {
+            "node": "Export Approved EML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export Approved EML": {
+      "main": [
+        [
+          {
+            "node": "Return EML Without Sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Short-Lived Preview Access": {
+      "main": [
+        [
+          {
+            "node": "Human Draft Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "staticData": null,
   "tags": [],
   "active": false
