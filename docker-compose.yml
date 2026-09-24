@@ -32,6 +32,9 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-pitchtrace}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pitchtrace}
       ANALYZER_API_KEY: ${ANALYZER_API_KEY:?ANALYZER_API_KEY is required}
+      PREVIEW_TOKEN_SECRET: ${PREVIEW_TOKEN_SECRET:?PREVIEW_TOKEN_SECRET is required}
+      PREVIEW_TOKEN_TTL_SECONDS: ${PREVIEW_TOKEN_TTL_SECONDS:-600}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
       RUN_MIGRATIONS_ON_BOOT: 'true'
       MIGRATIONS_DIR: /migrations
       ARTIFACT_ROOT: /data

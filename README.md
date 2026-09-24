@@ -36,8 +36,8 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 ## Not completed
 
-- The remaining four planned specialized n8n workflows and production pilot UI hardening.
-- Contact discovery persistence, dashboard, and the 50-company pilot.
+- The remaining four planned specialized n8n workflows and a public production deployment.
+- Contact discovery persistence, dashboard, and a real-company pilot.
 - Automatic email sending is intentionally out of scope for v0.1.
 
 ## Responsible use
@@ -120,6 +120,19 @@ bash scripts/smoke.sh
 
 On Windows, run `scripts/smoke.ps1`; both wrappers execute the same Compose smoke definition.
 
+### Real n8n runtime verification
+
+```sh
+npm run test:n8n-runtime
+```
+
+This starts a disposable, Internet-isolated Compose project (unique name, no host ports, tmpfs databases, generated throwaway secrets) with the pinned n8n 2.39.10, imports and publishes the committed workflows with the n8n CLI, and then:
+
+- injects deterministic faults through a **test-only** proxy to prove the shared retry workflow retries `500 → 500 → 200`, `429 + Retry-After → 200` and `timeout → 200`, stops at three attempts for persistent `503`, and makes exactly one call for `400`, `401`, `403`, `409 SUPPRESSED` and `422`;
+- drives the real n8n Form in Chromium through import, audit, draft review, real preview-token expiry and same-artifact refresh, then approval and `.eml` export, checking that no secret reaches the browser and no duplicate record is created.
+
+It uses test-only TTL/polling values (preview 60 s, refresh 300 s, poll 3 s); production defaults are unchanged. It removes only its own containers, network and volumes. The same job runs in the **Docker smoke** workflow. See [docs/n8n-runtime-testing.md](docs/n8n-runtime-testing.md). A passing run is runtime evidence, not production readiness: `npm run pilot:check` keeps `production_ready: false` until the deployment gates are verified.
+
 ## CSV company import
 
 Upload one UTF-8 CSV file in a multipart field named `file`:
@@ -170,7 +183,7 @@ Active and previously completed audits are not duplicated. Explicit domain suppr
 
 ## API overview
 
-- `GET /healthz`
+- `GET /livez`, `GET /readyz` (public, sanitized)
 - `POST /campaigns`
 - `POST /campaigns/{id}/companies`
 - `POST /campaigns/{id}/companies/import`
@@ -180,13 +193,14 @@ Active and previously completed audits are not duplicated. Explicit domain suppr
 - `GET /audits/{id}`
 - `POST /audits/{id}/score`
 - `GET /artifacts/{id}`
+- `POST /artifacts/{id}/preview-access` (authenticated) and `GET /artifact-previews/{token}` (short-lived)
 - `GET /drafts/context?company_id=…`
 - `POST /drafts`
 - `POST /drafts/{id}/approval`
 - `GET /drafts/{id}/export?format=eml`
 - `POST /suppression`
 
-All endpoints except `/healthz` require `X-API-Key`.
+All endpoints except liveness/readiness and the narrow signed preview route require `X-API-Key`.
 
 ## Documentation
 
@@ -195,7 +209,12 @@ All endpoints except `/healthz` require `X-API-Key`.
 - [Security notes](docs/security-notes.md)
 - [n8n installation](docs/n8n-installation.md)
 - [n8n workflow guide](docs/n8n-workflows.md)
+- [n8n runtime verification](docs/n8n-runtime-testing.md)
+- [Retry and idempotency matrix](docs/retry-idempotency-matrix.md)
 - [Responsible use](docs/responsible-use.md)
+- [Architecture](docs/architecture.md)
+- [Production preparation](deploy/README.md)
+- [Pilot guide](docs/pilot-guide.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

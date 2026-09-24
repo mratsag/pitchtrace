@@ -25,6 +25,7 @@ services:
       NODE_ENV: test
       DATABASE_URL: postgres://pitchtrace:${SMOKE_POSTGRES_PASSWORD}@smoke-postgres:5432/pitchtrace_smoke
       ANALYZER_API_KEY: ${SMOKE_API_KEY}
+      PREVIEW_TOKEN_SECRET: ${PREVIEW_TOKEN_SECRET}
       MIGRATIONS_DIR: /migrations
       ARTIFACT_ROOT: /tmp/pitchtrace-smoke-artifacts
       SSRF_ALLOW_LOOPBACK: '1'
