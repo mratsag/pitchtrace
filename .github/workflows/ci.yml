@@ -59,6 +59,9 @@ jobs:
       - name: Validate n8n workflow exports and policy
         working-directory: .
         run: node --test tests/workflows/*.test.mjs
+      - name: Check release version consistency
+        working-directory: .
+        run: node scripts/version-check.mjs && node --test tests/release/*.test.mjs
       - name: Check committed whitespace
         working-directory: .
         run: git show --check --format= HEAD && git diff --check

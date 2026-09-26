@@ -49,7 +49,7 @@ export const PERF_DEFAULTS = {
   pageWeightHighBytes: 3 * 1024 * 1024,
 } as const;
 
-export const ANALYZER_VERSION = str('ANALYZER_VERSION', '0.1.0-alpha.7');
+export const ANALYZER_VERSION = str('ANALYZER_VERSION', '0.1.0-alpha.8');
 
 export const config = {
   version: ANALYZER_VERSION,

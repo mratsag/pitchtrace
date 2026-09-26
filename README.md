@@ -8,7 +8,9 @@ Open-source, evidence-linked website auditing and human-approved outreach workfl
 
 PitchTrace crawls a small, robots-aware sample of a website, records reproducible findings and screenshots, calculates a deterministic opportunity score, and builds outreach drafts only from linked evidence. It never sends email automatically.
 
-Current version: `0.1.0-alpha.7` · Status: public alpha
+Current version: `0.1.0-alpha.8` · Status: public alpha (pre-release)
+
+This is a pre-release. The runtime is verified end to end, but PitchTrace is **not production-ready**: `npm run pilot:check` deliberately reports `production_ready: false` until the deployment gates in [deploy/README.md](deploy/README.md) are met. No email is ever sent automatically; approval only produces a `.eml` file. See the [changelog](CHANGELOG.md) and the [v0.1.0-alpha.8 release notes](docs/releases/v0.1.0-alpha.8.md).
 
 ## What works today
 
@@ -38,6 +40,8 @@ Current version: `0.1.0-alpha.7` · Status: public alpha
 
 - The remaining four planned specialized n8n workflows and a public production deployment.
 - Contact discovery persistence, dashboard, and a real-company pilot.
+- Real LLM/AI integration: draft generation is deterministic and built only from recorded findings.
+- Reply tracking.
 - Automatic email sending is intentionally out of scope for v0.1.
 
 ## Responsible use

@@ -8,7 +8,7 @@ body:
       value: "Security issues must be reported privately according to SECURITY.md."
   - type: input
     id: version
-    attributes: { label: Version, placeholder: 0.1.0-alpha.7 }
+    attributes: { label: Version, placeholder: 0.1.0-alpha.8 }
     validations: { required: true }
   - type: textarea
     id: steps
