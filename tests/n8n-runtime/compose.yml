@@ -96,6 +96,7 @@ services:
     extra_hosts:
       # Reserved test domain served by the loopback-only fixture sidecar.
       - site.pitchtrace.test:127.0.0.1
+      - site2.pitchtrace.test:127.0.0.1
     volumes:
       - ../../database/migrations:/migrations:ro
     tmpfs:

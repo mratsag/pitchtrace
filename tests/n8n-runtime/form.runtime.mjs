@@ -4,11 +4,14 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import { appRequire, ids, N8N, nodeRuns, OWNER_EMAIL, sleep, subExecutions } from './lib.mjs';
 
 const { chromium } = appRequire('playwright');
 const FORM_URL = `${N8N}/form/pitchtrace-campaign-review`;
 const CSV = '/work/tests/n8n-runtime/fixtures/companies.csv';
+// Two fictional companies: the campaign-wide review and the .zip export path.
+const CAMPAIGN_CSV = '/work/tests/n8n-runtime/fixtures/companies-campaign.csv';
 const PREVIEW_ORIGIN = 'http://preview.pitchtrace.test:8080';
 const RETRY_NODES = ['Queue Campaign Audits', 'Get Audit Progress', 'Get Draft Context', 'Request Short-Lived Preview Access'];
 
@@ -81,12 +84,12 @@ async function openForm(page) {
   await page.getByLabel('campaign_name').waitFor({ timeout: 15_000 });
 }
 
-async function submitIntake(page, campaignName) {
+async function submitIntake(page, campaignName, csv = CSV) {
   await openForm(page);
   await page.getByLabel('campaign_name').fill(campaignName);
   await page.getByLabel('sector').fill('fixture');
   await page.getByLabel('city').fill('Test City');
-  await page.getByLabel('csv').setInputFiles(CSV);
+  await page.getByLabel('csv').setInputFiles(csv);
   await page.getByRole('button', { name: /CSV'yi doğrula/i }).click();
 }
 
@@ -105,20 +108,32 @@ async function knownExecutions(session) {
   return new Set((await session.executions(ids.main, 100)).map((e) => String(e.id)));
 }
 
-/** Fails fast with n8n's (sanitized) error if the execution stops before `text` shows. */
-async function waitForPage(page, session, executionId, text, timeoutMs) {
-  const shown = page.getByText(text).first().waitFor({ timeout: timeoutMs });
+/** Resolves with `awaited`, or fails fast with n8n's (sanitized) error if the execution stops first. */
+async function unlessExecutionFails(session, executionId, awaited) {
   let stop = false;
   const failed = (async () => {
     while (!stop && executionId) {
       const e = await session.execution(executionId).catch(() => null);
       if (e && ['error', 'crashed'].includes(e.status)) {
-        throw new Error(`execution ${executionId} ended ${e.status}: ${String(e.data?.resultData?.error?.message ?? '').slice(0, 200)}`);
+        const node = e.data?.resultData?.lastNodeExecuted ?? 'unknown node';
+        throw new Error(`execution ${executionId} ended ${e.status} at ${node}: ${String(e.data?.resultData?.error?.message ?? '').slice(0, 200)}`);
       }
       await sleep(1000);
     }
   })();
-  try { await Promise.race([shown, failed]); } finally { stop = true; failed.catch(() => undefined); shown.catch(() => undefined); }
+  try {
+    return await Promise.race([awaited, failed]);
+  } catch (err) {
+    if (/ended (?:error|crashed) at/.test(err.message)) throw err;
+    // A timeout while the execution still runs, waits or already succeeded.
+    const e = await session.execution(executionId).catch(() => null);
+    const nodes = Object.keys(e?.data?.resultData?.runData ?? {});
+    throw new Error(`${err.message.split('\n')[0]} | execution ${executionId} status=${e?.status} last=${e?.data?.resultData?.lastNodeExecuted} ran=[${nodes.slice(-6).join(', ')}]`);
+  } finally { stop = true; failed.catch(() => undefined); awaited.catch(() => undefined); }
+}
+
+async function waitForPage(page, session, executionId, text, timeoutMs) {
+  await unlessExecutionFails(session, executionId, page.getByText(text).first().waitFor({ timeout: timeoutMs }));
 }
 
 async function reachReview(page, session, executionId) {
@@ -126,6 +141,27 @@ async function reachReview(page, session, executionId) {
   await page.getByLabel('Başlat').check();
   await page.getByRole('button', { name: /Kararı uygula/i }).click();
   await waitForPage(page, session, executionId, /Kanıta bağlı taslak incelemesi/i, 180_000);
+}
+
+/** Reads every stored or deflated entry of a .zip through its central directory. */
+function unzipEntries(buffer) {
+  const end = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  assert.ok(end >= 0, 'download is not a zip archive');
+  const entries = {};
+  let at = buffer.readUInt32LE(end + 16);
+  for (let i = 0; i < buffer.readUInt16LE(end + 10); i += 1) {
+    assert.equal(buffer.readUInt32LE(at), 0x02014b50, 'corrupt zip central directory');
+    const method = buffer.readUInt16LE(at + 10);
+    const size = buffer.readUInt32LE(at + 20);
+    const nameLength = buffer.readUInt16LE(at + 28);
+    const name = buffer.subarray(at + 46, at + 46 + nameLength).toString('utf8');
+    const local = buffer.readUInt32LE(at + 42);
+    const start = local + 30 + buffer.readUInt16LE(local + 26) + buffer.readUInt16LE(local + 28);
+    const data = buffer.subarray(start, start + size);
+    entries[name] = (method === 8 ? zlib.inflateRawSync(data) : data).toString('utf8');
+    at += 46 + nameLength + buffer.readUInt16LE(at + 30) + buffer.readUInt16LE(at + 32);
+  }
+  return entries;
 }
 
 /** Main happy path: retry injection on all retry-safe calls + preview expiry/refresh. */
@@ -145,17 +181,17 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     };
     await fault.arm(scenarioIds.queue, 'POST', '/campaigns/:uuid/audits', [{ status: 500, forward: true }]);
     await fault.arm(scenarioIds.progress, 'GET', '/campaigns/:uuid/audit-progress', [{ status: 503 }]);
-    await fault.arm(scenarioIds.context, 'GET', '/drafts/context?company_id=:uuid', [{ status: 502 }]);
+    await fault.arm(scenarioIds.context, 'GET', '/campaigns/:uuid/draft-contexts', [{ status: 502 }]);
     await fault.arm(scenarioIds.preview, 'POST', '/artifacts/:uuid/preview-access', [{ status: 429, retry_after: 1 }]);
     const since = (await fault.requests()).seq;
     const known = await knownExecutions(session);
 
-    await submitIntake(page, campaignName);
+    await submitIntake(page, campaignName, CAMPAIGN_CSV);
     step('intake submitted in Chromium', { form_url: FORM_URL.replace(N8N, '') });
     await page.getByText(/Import tamamlandı/i).waitFor({ timeout: 30_000 });
     const summary = await page.locator('body').innerText();
-    check(/Eklenen: 1/.test(summary), 'import summary did not report one imported company');
-    step('import summary shown', { imported: 1 });
+    check(/Eklenen: 2/.test(summary), 'import summary did not report two imported companies');
+    step('import summary shown', { imported: 2 });
     const executionId = await latestExecutionAfter(session, known);
     report.n8n_execution_id = executionId;
 
@@ -163,11 +199,13 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     step('audit start decided by human; draft review page reached');
     check(/otomatik e-posta göndermez/i.test(await page.locator('body').innerText()), 'review page lacks the no-auto-send statement');
 
-    const image = page.locator('img[alt^="Audit screenshot"]');
-    assert.equal(await image.count(), 1, 'review form did not render the screenshot element');
+    const images = page.locator('img[alt^="Audit screenshot"]');
+    assert.equal(await images.count(), 2, 'campaign review did not render one screenshot per draft');
+    check(await page.getByLabel('Onayla', { exact: true }).count() === 2, 'review form lacks one decision per draft');
+    const image = images.first();
     await image.evaluate((img) => img.complete || new Promise((r) => { img.onload = r; img.onerror = r; }));
     const previewUrl = await image.getAttribute('src');
-    const refreshUrl = await page.locator('a', { hasText: /yeni güvenli önizleme/i }).getAttribute('href');
+    const refreshUrl = await page.locator('a', { hasText: /yeni güvenli önizleme/i }).first().getAttribute('href');
     check(previewUrl?.startsWith(`${PREVIEW_ORIGIN}/artifact-previews/`), 'preview URL is not on the preview origin');
     check(refreshUrl?.startsWith(`${PREVIEW_ORIGIN}/artifact-preview-refresh/`), 'refresh URL is not on the preview origin');
     const firstWidth = await image.evaluate((img) => img.naturalWidth);
@@ -191,7 +229,7 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     if (waitMs > 0) await sleep(waitMs);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.getByText(/Kanıta bağlı taslak incelemesi/i).waitFor({ timeout: 30_000 });
-    const expiredImage = page.locator('img[alt^="Audit screenshot"]');
+    const expiredImage = page.locator('img[alt^="Audit screenshot"]').first();
     await expiredImage.evaluate((img) => img.complete || new Promise((r) => { img.onload = r; img.onerror = r; }));
     check((await expiredImage.getAttribute('src')) === previewUrl, 'form re-rendered with a different token (unexpected mint)');
     check((await expiredImage.evaluate((img) => img.naturalWidth)) === 0, 'expired preview still decoded');
@@ -215,7 +253,7 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     // Real user refresh action (link opens a new tab).
     const [previewPage] = await Promise.all([
       browser.context.waitForEvent('page'),
-      page.locator('a', { hasText: /yeni güvenli önizleme/i }).click(),
+      page.locator('a', { hasText: /yeni güvenli önizleme/i }).first().click(),
     ]);
     await previewPage.waitForLoadState('load');
     const newUrl = previewPage.url();
@@ -283,16 +321,21 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     report.state_unchanged_during_refresh = { before, after };
     step('draft status unchanged; no approval/export/audit/draft during refresh', { draft_status: after.draft_status });
 
-    // Human approval exports .eml only (no email is sent).
-    await page.getByLabel('Onayla').check();
+    // Both drafts approved: the .eml files arrive in one zip (no email is sent).
+    const approve = page.getByLabel('Onayla', { exact: true });
+    for (let i = 0; i < await approve.count(); i += 1) await approve.nth(i).check();
     const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
-    await page.getByRole('button', { name: /İnceleme kararını kaydet/i }).click();
-    const download = await downloadPromise;
-    check(/\.eml$/.test(download.suggestedFilename()), 'approval did not return an .eml download');
-    const emlPath = await download.path();
-    check(fs.readFileSync(emlPath, 'utf8').includes('pitchtrace.invalid'), 'eml does not target the reserved test contact');
+    await page.getByRole('button', { name: /İnceleme kararlarını kaydet/i }).click();
+    const download = await unlessExecutionFails(session, executionId, downloadPromise)
+      .catch(async (err) => { await page.screenshot({ path: `${outDir}/form-review-submitted.png`, fullPage: true }).catch(() => undefined); throw err; });
+    check(/\.zip$/.test(download.suggestedFilename()), `approval returned ${download.suggestedFilename()}, expected a .zip`);
+    const entries = unzipEntries(fs.readFileSync(await download.path()));
+    const emlNames = Object.keys(entries).filter((name) => name.endsWith('.eml'));
+    check(emlNames.length === 2, `zip holds ${emlNames.length} .eml files, expected 2`);
+    check(emlNames.every((name) => entries[name].includes('pitchtrace.invalid')), 'an eml does not target a reserved test contact');
+    report.export = { file: 'zip', eml_entries: emlNames.length };
     await download.delete();
-    step('human approval returned .eml download (deleted after check; nothing sent)');
+    step('human approval returned one zip with two .eml files (deleted after check; nothing sent)', { eml_entries: emlNames.length });
 
     const execution = await session.waitForExecution(executionId, (e) => e.status === 'success' || e.status === 'error' || e.status === 'crashed', 60_000);
     check(execution.status === 'success', `main execution status ${execution.status}`);
@@ -317,12 +360,13 @@ export async function runFormFlow({ session, fault, db, runId, secrets, ownerPas
     const routes = {};
     for (const r of (await fault.requests(since)).requests) routes[`${r.method} ${r.route}`] = (routes[`${r.method} ${r.route}`] ?? 0) + 1;
     report.analyzer_calls = routes;
-    for (const route of ['POST /campaigns', 'POST /campaigns/:id/companies/import', 'POST /drafts', 'POST /drafts/:id/approval', 'GET /drafts/:id/export?format=eml']) {
-      check(routes[route] === 1, `${route} called ${routes[route] ?? 0} times (expected exactly 1)`);
+    const expectedCalls = { 'POST /campaigns': 1, 'POST /campaigns/:id/companies/import': 1, 'POST /drafts': 2, 'POST /drafts/:id/approval': 2, 'GET /drafts/:id/export?format=eml': 2 };
+    for (const [route, expected] of Object.entries(expectedCalls)) {
+      check(routes[route] === expected, `${route} called ${routes[route] ?? 0} times (expected exactly ${expected})`);
     }
     const final = await campaignCounts(db, campaignName);
     report.duplicates = final;
-    check(final.campaigns === 1 && final.companies === 1 && final.audits === 1 && final.completed_audits === 1 && final.drafts === 1 && final.approvals === 1 && final.outreach_log === 1,
+    check(final.campaigns === 1 && final.companies === 2 && final.audits === 2 && final.completed_audits === 2 && final.drafts === 2 && final.approvals === 2 && final.outreach_log === 2,
       `unexpected business record counts ${JSON.stringify(final)}`);
 
     // Browser-side secret and endpoint checks over everything Chromium sent.
@@ -406,7 +450,7 @@ export async function runNoRetryFlows({ session, fault, db, runId, ownerPassword
       if (c.stage === 'approve') await reachReview(browser.page, session, executionId);
       if (c.stage === 'approve') {
         await browser.page.getByLabel('Onayla').check();
-        await browser.page.getByRole('button', { name: /İnceleme kararını kaydet/i }).click();
+        await browser.page.getByRole('button', { name: /İnceleme kararlarını kaydet/i }).click();
       }
       const execution = await session.waitForExecution(executionId, (e) => ['success', 'error', 'crashed'].includes(e.status), 240_000);
       check(execution.status === 'error', `execution ended ${execution.status}, expected controlled error`);

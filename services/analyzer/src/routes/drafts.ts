@@ -43,31 +43,68 @@ async function validationContext(base: DraftBase, ids: string[]): Promise<Valida
   };
 }
 
+type DraftContextResult =
+  | { ok: true; context: Record<string, unknown> }
+  | { ok: false; reason: 'DRAFT_CONTEXT_NOT_FOUND' | 'SUPPRESSED' }
+  | { ok: false; reason: 'SCORE_BELOW_THRESHOLD'; score: number; min_score: number };
+
+async function loadDraftContext(companyId: string): Promise<DraftContextResult> {
+  const base = await query<DraftBase & { score: number; min_score: number }>(
+    `SELECT a.id audit_id, a.company_id, ct.id contact_id, ct.email::text, c.name company_name,
+            c.normalized_domain::text, a.final_url, cam.language, s.total score, cam.min_score
+       FROM pitchtrace.companies c JOIN pitchtrace.campaigns cam ON cam.id=c.campaign_id
+       JOIN LATERAL (SELECT * FROM pitchtrace.audits WHERE company_id=c.id AND status='completed' ORDER BY finished_at DESC NULLS LAST LIMIT 1) a ON true
+       JOIN pitchtrace.scores s ON s.audit_id=a.id
+       JOIN LATERAL (SELECT * FROM pitchtrace.contacts WHERE company_id=c.id ORDER BY is_primary DESC, created_at LIMIT 1) ct ON true
+      WHERE c.id=$1`, [companyId]);
+  const row = base.rows[0];
+  if (!row) return { ok: false, reason: 'DRAFT_CONTEXT_NOT_FOUND' };
+  if (await isSuppressed(row.email, row.normalized_domain)) return { ok: false, reason: 'SUPPRESSED' };
+  if (row.score < row.min_score) return { ok: false, reason: 'SCORE_BELOW_THRESHOLD', score: row.score, min_score: row.min_score };
+  const findings = await query<ContextFinding>(
+    `SELECT id, code, severity, confidence, url, evidence, metric_name, metric_value,
+            metric_unit, artifact_id FROM pitchtrace.findings WHERE audit_id=$1 ORDER BY severity DESC, code`, [row.audit_id]);
+  const screenshot = await query<{ id: string }>(
+    `SELECT id FROM pitchtrace.artifacts WHERE audit_id=$1 AND kind='screenshot' AND deleted_at IS NULL ORDER BY created_at, id LIMIT 1`, [row.audit_id]);
+  return { ok: true, context: {
+    company: { id: row.company_id, name: row.company_name, domain: row.normalized_domain },
+    contact: { id: row.contact_id, email: row.email }, audit_id: row.audit_id, language: row.language,
+    score: row.score, findings: findings.rows.map(presentFinding),
+    screenshot_artifact_id: findings.rows.find((f) => f.artifact_id)?.artifact_id ?? screenshot.rows[0]?.id ?? null,
+    instructions: ['Yalnızca finding_ids ile desteklenen iddiaları kullan.', 'PERF_LCP_SLOW değerini kesin değer değil “en az” alt sınırı olarak yaz.'],
+  } };
+}
+
 export async function draftRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { company_id: string } }>('/drafts/context', {
     schema: { querystring: { type: 'object', required: ['company_id'], properties: { company_id: { type: 'string', format: 'uuid' } } } },
   }, async (request, reply) => {
-    const base = await query<DraftBase & { score: number; min_score: number }>(
-      `SELECT a.id audit_id, a.company_id, ct.id contact_id, ct.email::text, c.name company_name,
-              c.normalized_domain::text, a.final_url, cam.language, s.total score, cam.min_score
-         FROM pitchtrace.companies c JOIN pitchtrace.campaigns cam ON cam.id=c.campaign_id
-         JOIN LATERAL (SELECT * FROM pitchtrace.audits WHERE company_id=c.id AND status='completed' ORDER BY finished_at DESC NULLS LAST LIMIT 1) a ON true
-         JOIN pitchtrace.scores s ON s.audit_id=a.id
-         JOIN LATERAL (SELECT * FROM pitchtrace.contacts WHERE company_id=c.id ORDER BY is_primary DESC, created_at LIMIT 1) ct ON true
-        WHERE c.id=$1`, [request.query.company_id]);
-    const row = base.rows[0];
-    if (!row) return reply.code(404).send({ error: 'DRAFT_CONTEXT_NOT_FOUND' });
-    if (await isSuppressed(row.email, row.normalized_domain)) return reply.code(409).send({ error: 'SUPPRESSED' });
-    if (row.score < row.min_score) return reply.code(412).send({ error: 'SCORE_BELOW_THRESHOLD', score: row.score, min_score: row.min_score });
-    const findings = await query<ContextFinding>(
-      `SELECT id, code, severity, confidence, url, evidence, metric_name, metric_value,
-              metric_unit, artifact_id FROM pitchtrace.findings WHERE audit_id=$1 ORDER BY severity DESC, code`, [row.audit_id]);
-    return {
-      company: { id: row.company_id, name: row.company_name, domain: row.normalized_domain },
-      contact: { id: row.contact_id, email: row.email }, audit_id: row.audit_id, language: row.language,
-      score: row.score, findings: findings.rows.map(presentFinding),
-      instructions: ['Yalnızca finding_ids ile desteklenen iddiaları kullan.', 'PERF_LCP_SLOW değerini kesin değer değil “en az” alt sınırı olarak yaz.'],
-    };
+    const result = await loadDraftContext(request.query.company_id);
+    if (result.ok) return result.context;
+    if (result.reason === 'SUPPRESSED') return reply.code(409).send({ error: 'SUPPRESSED' });
+    if (result.reason === 'SCORE_BELOW_THRESHOLD') return reply.code(412).send({ error: 'SCORE_BELOW_THRESHOLD', score: result.score, min_score: result.min_score });
+    return reply.code(404).send({ error: 'DRAFT_CONTEXT_NOT_FOUND' });
+  });
+
+  // Campaign-wide review: one retry-safe read. Ineligible companies are listed
+  // with a reason instead of failing the whole review.
+  app.get<{ Params: { id: string } }>('/campaigns/:id/draft-contexts', {
+    schema: { params: { type: 'object', required: ['id'], properties: { id: { type: 'string', format: 'uuid' } } } },
+  }, async (request, reply) => {
+    const campaign = await query('SELECT 1 FROM pitchtrace.campaigns WHERE id=$1', [request.params.id]);
+    if (!campaign.rowCount) return reply.code(404).send({ error: 'CAMPAIGN_NOT_FOUND' });
+    const companies = await query<{ id: string; name: string; domain: string }>(
+      `SELECT id, name, normalized_domain::text domain FROM pitchtrace.companies
+        WHERE campaign_id=$1 ORDER BY created_at, id LIMIT 50`, [request.params.id]);
+    const contexts: Record<string, unknown>[] = [];
+    const skipped: Record<string, unknown>[] = [];
+    for (const company of companies.rows) {
+      const result = await loadDraftContext(company.id);
+      if (result.ok) contexts.push(result.context);
+      else skipped.push({ company_id: company.id, name: company.name, domain: company.domain, reason: result.reason,
+        ...(result.reason === 'SCORE_BELOW_THRESHOLD' ? { score: result.score, min_score: result.min_score } : {}) });
+    }
+    return { campaign_id: request.params.id, contexts, skipped };
   });
 
   app.post<{ Body: { audit_id: string; contact_id: string; output: unknown } }>('/drafts', {

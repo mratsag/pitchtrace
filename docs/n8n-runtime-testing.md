@@ -47,11 +47,12 @@ the real 300 s refresh-handle TTL.
 - No `container_name` or explicit volume/network name: every resource carries
   the unique project prefix, so existing `pitchtrace-*` volumes, the normal
   n8n and analyzer databases and backups are never touched.
-- Data is fictional: campaign names are generated, the company website is
-  `site.pitchtrace.test` (served on the analyzer's loopback from
+- Data is fictional: campaign names are generated, the company websites are
+  `site.pitchtrace.test` and, for the two-company campaign review,
+  `site2.pitchtrace.test` (both served on the analyzer's loopback from
   `tests/n8n-runtime/site/opportunity.html`, a page with deliberate issues so
-  the audit clears the workflow's review threshold of 50), the contact is
-  `review@pitchtrace.invalid`, the n8n owner is `owner@pitchtrace.test`.
+  the audit clears the workflow's review threshold of 50), the contacts are
+  `review@pitchtrace.invalid` and `review2@pitchtrace.invalid`, the n8n owner is `owner@pitchtrace.test`.
 - The analyzer image is built with the fixed tag
   `pitchtrace-n8n-runtime-analyzer:local` and kept as build cache; remove it
   with `docker image rm pitchtrace-n8n-runtime-analyzer:local` if unwanted.

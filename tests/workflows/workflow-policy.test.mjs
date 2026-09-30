@@ -49,7 +49,7 @@ test('critical analyzer endpoints are real and use only the internal analyzer or
   const config = nodes.get('Workflow Config');
   const values = config.parameters.assignments.assignments;
   assert.equal(values.find((x) => x.name === 'analyzerBaseUrl').value, 'http://analyzer:8080');
-  for (const endpoint of ['/campaigns', '/companies/import', '/audits', '/audit-progress', '/drafts/context', '/drafts', '/approval', '/export?format=eml', '/preview-access']) {
+  for (const endpoint of ['/campaigns', '/companies/import', '/audits', '/audit-progress', '/draft-contexts', '/drafts', '/approval', '/export?format=eml', '/preview-access']) {
     assert.ok(source.includes(endpoint), `missing endpoint ${endpoint}`);
   }
   assert.equal(source.match(/http:\/\/analyzer:8080/g)?.length, 1, 'only the central internal analyzer origin is allowed');
@@ -78,14 +78,31 @@ test('screenshot preview uses an artifact-bound short-lived URL without exposing
   const fetch = nodes.get('Request Short-Lived Preview Access');
   assert.match(fetch.parameters.workflowInputs.value.url, /\/artifacts\/.*\/preview-access/);
   assert.equal(fetch.parameters.workflowInputs.value.method, 'POST');
-  const review = nodes.get('Human Draft Review');
-  assert.match(review.parameters.options.formDescription, /preview_url/);
-  assert.match(review.parameters.options.formDescription, /referrerpolicy=/);
-  assert.match(review.parameters.options.formDescription, /refresh_url/);
-  assert.match(review.parameters.options.formDescription, /süresi dolduysa/);
+  const page = nodes.get('Assemble Review Page').parameters.jsCode;
+  assert.match(page, /preview_url/);
+  assert.match(page, /referrerpolicy=/);
+  assert.match(page, /refresh_url/);
+  assert.match(page, /süresi dolduysa/);
+  assert.equal(nodes.get('Human Draft Review').parameters.options.formDescription, '={{ $json.description_html }}');
   assert.ok(!nodes.has('Controlled Screenshot Preview'));
   assert.ok(!nodes.has('Fetch Preview Artifact'));
   assert.doesNotMatch(source, /data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]{100}/);
+});
+
+test('campaign review mints one preview per draft inside a bounded loop', () => {
+  assert.equal(nodes.get('Loop Over Drafts').type, 'n8n-nodes-base.splitInBatches');
+  assert.deepEqual(outputs('Loop Over Drafts', 1), ['Request Short-Lived Preview Access']);
+  assert.deepEqual(outputs('Request Short-Lived Preview Access'), ['Loop Over Drafts']);
+  assert.deepEqual(outputs('Loop Over Drafts', 0), ['Assemble Review Page']);
+  assert.notEqual(nodes.get('Request Short-Lived Preview Access').parameters.mode, 'each', 'per-item mode is deprecated in n8n 2.x');
+});
+
+test('no-candidate branches end without approval or export', () => {
+  for (const gate of ['Any Draft Candidate?', 'Any Draft Stored?']) {
+    assert.deepEqual(outputs(gate, 1), ['No Reviewable Draft Result']);
+    assert.ok(!reachable(gate, 1).has('Record Explicit Approval'));
+    assert.ok(!reachable(gate, 1).has('Human Draft Review'));
+  }
 });
 
 test('retry-safe analyzer calls use the shared retry workflow',()=>{

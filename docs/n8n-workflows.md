@@ -35,18 +35,29 @@ do not change it to anonymous access for production.
 3. Review the analyzer's real import summary and explicitly choose **Başlat**.
 4. The workflow queues idempotent campaign audits and polls every 30 seconds.
    It stops after 120 checks and reports timeout; it never uses a tight loop.
-5. When terminal, failed audit count remains visible. The workflow chooses the
-   first newly imported company with a completed, scored audit and contact.
-6. It obtains draft context and builds a deterministic two-claim test draft.
-   The claim uses a real outreach-eligible finding ID and is posted to the
-   analyzer, where V1–V16 remain authoritative.
-7. The review page shows company/domain, result summary, rendered draft, and—if
-   available—the screenshot from an analyzer-issued short-lived preview URL.
-8. **Reddet** calls neither approval nor export. **Onayla** records approval,
-   then requests `.eml`. Export repeats suppression checking; a late
+5. When terminal, one retry-safe `GET /campaigns/{id}/draft-contexts` returns
+   the draft context of every company with a completed, scored audit and a
+   contact. Companies that are suppressed, below the campaign's `min_score`,
+   or without a completed audit are listed as skipped with their reason
+   instead of failing the review.
+6. For each eligible company the workflow builds a deterministic two-claim test
+   draft from a real outreach-eligible finding and posts it to the analyzer,
+   where V1–V16 remain authoritative. A company without such a finding or
+   screenshot, or whose draft the validator rejects (`422`), is skipped with
+   its reason; any other draft-creation failure stops after one call.
+7. A single review page lists every draft: company/domain, recipient, score,
+   rendered draft, and a screenshot from an analyzer-issued short-lived
+   preview URL minted per draft. Skipped companies and their reasons are shown
+   at the top.
+8. Each draft needs its own explicit **Onayla** or **Reddet**; there is no
+   default and no "approve all". Rejected drafts call neither approval nor
+   export and stay `pending_review`. Each approved draft records approval, then
+   requests `.eml`. Export repeats suppression checking; a late
    `409 SUPPRESSED` stops the workflow.
-9. A successful page downloads the `.eml` and states explicitly that no email
-   was sent.
+9. A successful page downloads the `.eml` (one approved draft) or a single
+   `.zip` of `.eml` files (several), and states explicitly that no email was
+   sent. If nothing was approved, or no draft could be built, a text page says
+   so and nothing is exported.
 
 There is no OpenAI credential or model call in this phase. Replace the
 deterministic builder only in a later phase; never bypass analyzer validation.
@@ -82,7 +93,8 @@ bodies, headers, URLs and stack traces are not included; the main workflow
 never continues with a failed analyzer result.
 
 The main workflow calls `00-analyzer-http-retry.json` for audit start/progress,
-draft context and preview access. Campaign creation, CSV import, draft creation,
+campaign draft contexts and preview access (once per draft, through a
+`Loop Over Drafts` node; n8n 2.x deprecates per-item sub-workflow mode). Campaign creation, CSV import, draft creation,
 approval and `.eml` export are not automatically retried because their result
 can be ambiguous or they append state. See `retry-idempotency-matrix.md`.
 These behaviors are verified on real n8n 2.39.10 executions by
@@ -93,7 +105,7 @@ artifact. The refresh handle can mint only a new short-lived read token, never
 accepts an artifact ID or URL from the browser, and does not approve or recreate
 the audit/draft. The old token remains expired.
 
-Import validation, no eligible company/finding, draft validation, artifact
-expiry, timeout, suppression, and export errors remain visible in the
-execution. n8n execution data must be treated as sensitive and pruned/backed up
+Import validation, artifact expiry, timeout, late suppression, and export
+errors remain visible in the execution; per-company skip reasons appear on the
+review page. n8n execution data must be treated as sensitive and pruned/backed up
 according to the installation guide.
