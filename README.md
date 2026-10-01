@@ -29,7 +29,7 @@ This is a pre-release. The runtime is verified end to end, but PitchTrace is **n
 - Evidence-linked structured draft output, V1–V16 validation, server-side body rendering, human approval, suppression checks, and `.eml` export.
 - Bounded CSV campaign import with per-row results, deduplication, suppression checks, and partial success.
 - Campaign-wide audit enqueue and aggregate progress endpoints designed for polling.
-- Importable n8n campaign → CSV → audit → evidence draft → human review → `.eml` workflow.
+- Importable n8n campaign → CSV → audit → evidence drafts for every eligible company → per-draft human review → `.eml` (or one `.zip`) workflow.
 - No automatic email delivery.
 
 ## Experimental features
@@ -199,6 +199,7 @@ Active and previously completed audits are not duplicated. Explicit domain suppr
 - `GET /artifacts/{id}`
 - `POST /artifacts/{id}/preview-access` (authenticated) and `GET /artifact-previews/{token}` (short-lived)
 - `GET /drafts/context?company_id=…`
+- `GET /campaigns/{id}/draft-contexts`
 - `POST /drafts`
 - `POST /drafts/{id}/approval`
 - `GET /drafts/{id}/export?format=eml`

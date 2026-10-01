@@ -409,15 +409,19 @@
     },
     {
       "parameters": {
-        "jsCode": "const imported = $('Import CSV').first().json.results.filter(r => r.status === 'imported' && r.company_id); if (!imported.length) throw new Error('No eligible imported company is available for review'); return [{json:{company_id: imported[0].company_id, progress:$json}}];"
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Audit başlatılmadı",
+        "completionMessage": "Kullanıcı audit başlatmayı onaylamadı. Kuyruğa iş eklenmedi.",
+        "options": {}
       },
-      "id": "902cff28-976f-421c-9245-caac921242ef",
-      "name": "Select Review Company",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "d6127850-4a2b-4f2b-a4a1-f46bdc34dcf4",
+      "name": "Audit Rejected Result",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
       "position": [
-        820,
-        -180
+        -60,
+        120
       ]
     },
     {
@@ -431,7 +435,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "method": "GET",
-            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/context?company_id=' + $json.company_id }}",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/campaigns/' + $('Create Campaign').first().json.id + '/draft-contexts' }}",
             "retry_safe": true,
             "operation": "Get Draft Context"
           },
@@ -447,18 +451,53 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
+        820,
+        -180
+      ],
+      "notes": "Kampanya düzeyinde tek retry-safe okuma; uygun olmayan firmalar gerekçesiyle atlanır."
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst reasonText = { SCORE_BELOW_THRESHOLD: 'skor kampanya eşiğinin altında', SUPPRESSED: 'alıcı veya domain bastırma listesinde',\n  DRAFT_CONTEXT_NOT_FOUND: 'tamamlanmış audit, skor veya kişi bulunamadı', NO_ELIGIBLE_FINDING: 'outreach için uygun gözlenmiş bulgu yok',\n  NO_SCREENSHOT: 'ekran görüntüsü yok' };\nconst skipped = (data.skipped ?? []).map((s) => ({ ...s, reason_text: reasonText[s.reason] ?? s.reason }));\nconst drafts = [];\nfor (const context of data.contexts ?? []) {\n  const c = context.company;\n  const skip = (reason) => skipped.push({ company_id: c.id, name: c.name, domain: c.domain, reason, reason_text: reasonText[reason] });\n  const finding = context.findings.find((f) => f.outreach_eligible && f.confidence === 'observed');\n  if (!finding) { skip('NO_ELIGIBLE_FINDING'); continue; }\n  if (!context.screenshot_artifact_id) { skip('NO_SCREENSHOT'); continue; }\n  const output = { language: context.language, subject: 'Web siteniz hakkında kısa bir teknik gözlem', greeting: 'Merhaba,',\n    claims: [{ text: 'Kayıtlı web sitesi bulgusu tarafımızca doğrulandı.', claim_type: 'assertion', confidence: 'observed', finding_ids: [finding.id] },\n      { text: 'Bu bulguyu birlikte incelemek ister misiniz?', claim_type: 'question', confidence: 'observed', finding_ids: [] }],\n    closing: 'İyi çalışmalar.' };\n  drafts.push({ context, output, artifact_id: context.screenshot_artifact_id });\n}\nif (!drafts.length) return [{ json: { no_candidate: true, skipped } }];\nreturn drafts.map((d) => ({ json: { ...d, skipped } }));"
+      },
+      "id": "03f22473-5686-4534-b4b4-dfb095a350c9",
+      "name": "Build Deterministic Evidence Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
         1040,
         -180
       ]
     },
     {
       "parameters": {
-        "jsCode": "const context=$json; const finding=context.findings.find(f=>f.outreach_eligible && f.confidence==='observed'); if(!finding) throw new Error('No outreach-eligible observed finding is available'); const output={language:context.language,subject:'Web siteniz hakkında kısa bir teknik gözlem',greeting:'Merhaba,',claims:[{text:'Kayıtlı web sitesi bulgusu tarafımızca doğrulandı.',claim_type:'assertion',confidence:'observed',finding_ids:[finding.id]},{text:'Bu bulguyu birlikte incelemek ister misiniz?',claim_type:'question',confidence:'observed',finding_ids:[]}],closing:'İyi çalışmalar.'}; const artifact=context.findings.find(f=>f.artifact_id)?.artifact_id ?? null; return [{json:{context,output,artifact_id:artifact}}];"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "candidate",
+              "leftValue": "={{ $json.no_candidate !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "03f22473-5686-4534-b4b4-dfb095a350c9",
-      "name": "Build Deterministic Evidence Draft",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "6d99fd77-0b42-4bdd-a129-7de7d83f8e92",
+      "name": "Any Draft Candidate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
       "position": [
         1260,
         -180
@@ -475,7 +514,13 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({audit_id:$json.context.audit_id, contact_id:$json.context.contact.id, output:$json.output}) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
         }
       },
       "id": "7f0df130-50ac-4ae5-a6ef-62ce8a3606ab",
@@ -484,7 +529,85 @@
       "typeVersion": 4.3,
       "position": [
         1480,
-        -180
+        -280
+      ],
+      "notes": "Validator 422 yalnız o firmayı atlar; diğer hatalar tek denemeden sonra yürütmeyi durdurur."
+    },
+    {
+      "parameters": {
+        "jsCode": "const built = $('Build Deterministic Evidence Draft').all().map((i) => i.json);\nconst skipped = [...built[0].skipped];\nconst stored = [];\n$input.all().forEach((response, i) => {\n  const status = Number(response.json.statusCode ?? 0);\n  const b = built[i];\n  const c = b.context.company;\n  if (status === 201) {\n    stored.push({ draft_id: response.json.body.draft_id, body: response.json.body.body, subject: b.output.subject, company: c,\n      contact_email: b.context.contact.email, score: b.context.score, artifact_id: b.artifact_id });\n    return;\n  }\n  if (status === 422) {\n    skipped.push({ company_id: c.id, name: c.name, domain: c.domain, reason: 'VALIDATOR_REJECTED', reason_text: 'taslak V1–V16 doğrulamasından geçmedi' });\n    return;\n  }\n  // Draft creation is not retry-safe: stop after this single attempt.\n  throw new Error(`ANALYZER_REQUEST_FAILED (HTTP ${status || 'yok'}, 1 deneme, Validate and Store Draft): Taslak kaydedilemedi; tekrar denenmedi, hassas yanıt ayrıntıları gizlendi.`);\n});\nif (!stored.length) return [{ json: { no_candidate: true, skipped } }];\nreturn stored.map((d) => ({ json: { ...d, skipped } }));"
+      },
+      "id": "9fdbe020-d29f-4cd8-83f1-262ab725e629",
+      "name": "Collect Stored Drafts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "stored",
+              "leftValue": "={{ $json.no_candidate !== true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b965192d-7faf-4630-945a-d7490d611979",
+      "name": "Any Draft Stored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        -280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "İncelenecek taslak yok",
+        "completionMessage": "={{ 'İncelenecek geçerli taslak oluşmadı. Atlanan firmalar: ' + ($json.skipped.map(s => s.name + ' (' + s.domain + '): ' + s.reason_text).join('; ') || 'yok') + '. Approval endpoint\\'i çağrılmadı; hiçbir .eml veya e-posta üretilmedi.' }}",
+        "options": {}
+      },
+      "id": "c32e59c1-4ab6-4c7c-936c-d107f0fd120d",
+      "name": "No Reviewable Draft Result",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.5,
+      "position": [
+        2140,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "dc119747-a31c-4747-b77e-4cc2c767373f",
+      "name": "Loop Over Drafts",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2140,
+        -280
       ]
     },
     {
@@ -498,7 +621,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "method": "POST",
-            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $('Build Deterministic Evidence Draft').first().json.artifact_id + '/preview-access' }}",
+            "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/artifacts/' + $json.artifact_id + '/preview-access' }}",
             "retry_safe": true,
             "operation": "Request Short-Lived Preview Access"
           },
@@ -514,19 +637,33 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
-        1700,
-        -180
+        2360,
+        -160
+      ],
+      "notes": "Artifact-bound kısa ömürlü preview URL kullanılır; API anahtarı browsera verilmez."
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = (s) => String(s ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' })[ch]);\nconst drafts = $('Collect Stored Drafts').all().map((i) => i.json);\nconst previews = $input.all().map((i) => i.json);\nif (previews.length !== drafts.length) throw new Error('Önizleme sayısı taslak sayısıyla eşleşmiyor; inceleme durduruldu.');\nconst fields = [];\nconst review = [];\ndrafts.forEach((d, i) => {\n  const n = i + 1;\n  const p = previews[i];\n  fields.push({ fieldType: 'html', html: `<h3>${n}. ${esc(d.company.name)} (${esc(d.company.domain)})</h3>`\n    + `<p><strong>Alıcı:</strong> ${esc(d.contact_email)} · <strong>Skor:</strong> ${esc(d.score)}</p>`\n    + `<p><strong>Konu:</strong> ${esc(d.subject)}</p><pre>${esc(d.body)}</pre>`\n    + `<img alt=\"Audit screenshot ${n}; bağlantının süresi dolduysa aşağıdaki yenileme bağlantısını kullanın\" width=\"375\" referrerpolicy=\"no-referrer\" src=\"${esc(p.preview_url)}\">`\n    + `<p><a target=\"_blank\" rel=\"noreferrer\" href=\"${esc(p.refresh_url)}\">Bu firma için yeni güvenli önizleme isteyin</a></p>` });\n  fields.push({ fieldName: `decision_${n}`, fieldLabel: `${n}. ${d.company.name} (${d.company.domain}) kararı`, fieldType: 'radio',\n    fieldOptions: { values: [{ option: 'Onayla' }, { option: 'Reddet' }] }, requiredField: true });\n  review.push({ n, draft_id: d.draft_id, company_id: d.company.id, name: d.company.name, domain: d.company.domain });\n});\nconst skipped = drafts[0].skipped;\nconst skippedHtml = skipped.length\n  ? `<p><strong>Atlanan firmalar (${skipped.length}):</strong></p><ul>${skipped.map((s) => `<li>${esc(s.name)} (${esc(s.domain)}): ${esc(s.reason_text)}</li>`).join('')}</ul>`\n  : '';\nconst description = `<p><strong>${drafts.length}</strong> taslak incelemenizi bekliyor. Her taslak için ayrı karar verin; yalnız onaylananlar için .eml hazırlanır.</p>`\n  + skippedHtml\n  + '<p><strong>Önizleme bağlantısının süresi dolduysa</strong> ilgili firmanın altındaki bağlantıdan aynı görsel için yeni güvenli önizleme isteyin. Bu işlem onay, audit veya draft oluşturmaz.</p>'\n  + '<p>Görsel bağlantıları kısa ömürlüdür. Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>';\nreturn [{ json: { review, review_fields: fields, description_html: description } }];"
+      },
+      "id": "4f743747-a407-4366-9402-acab59589798",
+      "name": "Assemble Review Page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        -400
       ]
     },
     {
       "parameters": {
         "operation": "page",
         "defineForm": "json",
-        "jsonOutput": "[{\"fieldLabel\":\"review_decision\",\"fieldType\":\"radio\",\"fieldOptions\":{\"values\":[{\"option\":\"Onayla\"},{\"option\":\"Reddet\"}]},\"requiredField\":true},{\"fieldLabel\":\"rejection_note\",\"fieldType\":\"textarea\",\"requiredField\":false}]",
+        "jsonOutput": "={{ $json.review_fields }}",
         "options": {
           "formTitle": "Kanıta bağlı taslak incelemesi",
-          "formDescription": "={{ '<p><strong>Firma:</strong> ' + $('Get Draft Context').first().json.company.name + ' (' + $('Get Draft Context').first().json.company.domain + ')</p><p><strong>Konu:</strong> ' + $('Build Deterministic Evidence Draft').first().json.output.subject + '</p><pre>' + $('Validate and Store Draft').first().json.body + '</pre><img alt=\"Audit screenshot; bağlantının süresi dolduysa aşağıdaki yenileme bağlantısını kullanın\" style=\"max-width:375px;border:1px solid #ccc\" referrerpolicy=\"no-referrer\" src=\"' + $('Request Short-Lived Preview Access').first().json.preview_url + '\"><p><strong>Önizleme bağlantısının süresi dolduysa</strong> <a target=\"_blank\" rel=\"noreferrer\" href=\"' + $('Request Short-Lived Preview Access').first().json.refresh_url + '\">aynı görsel için yeni güvenli önizleme isteyin</a>. Bu işlem onay, audit veya draft oluşturmaz.</p><p>Görsel bağlantısı kısa ömürlüdür. Onay yalnız .eml hazırlar; otomatik e-posta göndermez.</p>' }}",
-          "buttonLabel": "İnceleme kararını kaydet"
+          "formDescription": "={{ $json.description_html }}",
+          "buttonLabel": "İnceleme kararlarını kaydet"
         }
       },
       "id": "89d424d8-80bb-4592-978e-96c3fe91ef3f",
@@ -534,10 +671,22 @@
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
       "position": [
-        1920,
-        -180
-      ],
-      "notes": "Artifact-bound kısa ömürlü preview URL kullanılır; API anahtarı browsera verilmez."
+        2580,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const form = $input.first().json;\nconst review = $('Assemble Review Page').first().json.review;\nconst approved = [];\nlet rejected = 0;\nfor (const r of review) {\n  const decision = form[`decision_${r.n}`];\n  if (decision === 'Onayla') approved.push(r);\n  else if (decision === 'Reddet') rejected += 1;\n  else throw new Error(`Taslak ${r.n} için karar eksik; hiçbir onay kaydedilmedi.`);\n}\nif (!approved.length) return [{ json: { approved_count: 0, rejected_count: rejected } }];\nreturn approved.map((r) => ({ json: { ...r, approved_count: approved.length, rejected_count: rejected } }));"
+      },
+      "id": "5f5a3f60-5c09-43cb-aed3-6d2ee864ede4",
+      "name": "Resolve Review Decisions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        -400
+      ]
     },
     {
       "parameters": {
@@ -551,11 +700,12 @@
           "conditions": [
             {
               "id": "human-approved",
-              "leftValue": "={{ $json.review_decision }}",
-              "rightValue": "Onayla",
+              "leftValue": "={{ $json.approved_count > 0 }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "equals"
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
               }
             }
           ],
@@ -568,14 +718,14 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2140,
-        -180
+        3020,
+        -400
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/approval' }}",
+        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $json.draft_id + '/approval' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -591,13 +741,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2360,
-        -280
+        3240,
+        -500
       ]
     },
     {
       "parameters": {
-        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $('Validate and Store Draft').first().json.draft_id + '/export?format=eml' }}",
+        "url": "={{ $('Workflow Config').first().json.analyzerBaseUrl + '/drafts/' + $json.draft_id + '/export?format=eml' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -615,34 +765,98 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2580,
-        -280
+        3460,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst approved = $('Resolve Review Decisions').all().map((i) => i.json);\nconst binary = {};\nitems.forEach((item, i) => {\n  const file = item.binary?.eml;\n  if (!file) throw new Error('Onaylanan taslağın .eml dosyası alınamadı.');\n  const key = items.length === 1 ? 'export' : `eml_${i + 1}`;\n  binary[key] = { ...file, fileName: `${String(i + 1).padStart(2, '0')}-${approved[i].domain}.eml` };\n});\nreturn [{ json: { approved_count: items.length, rejected_count: approved[0].rejected_count, binary_keys: Object.keys(binary).join(','), zip: items.length > 1 }, binary }];"
+      },
+      "id": "1714546e-a3e7-4247-a02e-06260d63d6db",
+      "name": "Bundle Approved Exports",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "multiple",
+              "leftValue": "={{ $json.zip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1a94c7a5-962a-43d5-b04f-b00ced593159",
+      "name": "Multiple Approved Exports?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3900,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "compress",
+        "binaryPropertyName": "={{ $json.binary_keys }}",
+        "outputFormat": "zip",
+        "fileName": "pitchtrace-onaylanan-taslaklar.zip",
+        "binaryPropertyOutput": "export"
+      },
+      "id": "e327ff85-ff97-40f5-8d92-f7cc8d14ea1b",
+      "name": "Zip Approved Exports",
+      "type": "n8n-nodes-base.compression",
+      "typeVersion": 1.1,
+      "position": [
+        4120,
+        -600
       ]
     },
     {
       "parameters": {
         "operation": "completion",
         "respondWith": "returnBinary",
-        "completionTitle": "Taslak onaylandı",
-        "completionMessage": "Taslak onaylandı ve .eml dosyası hazırlandı. Herhangi bir e-posta otomatik gönderilmedi.",
-        "inputDataFieldName": "eml",
+        "completionTitle": "Taslaklar onaylandı",
+        "completionMessage": "Onaylanan taslaklar için .eml hazırlandı (birden fazlaysa tek zip içinde). Reddedilen taslaklar için approval çağrılmadı. Herhangi bir e-posta otomatik gönderilmedi.",
+        "inputDataFieldName": "export",
         "options": {}
       },
-      "id": "543a1617-abbe-4bb9-a4f4-51670e8de438",
-      "name": "Return EML Without Sending",
+      "id": "0a035bab-1635-481c-9529-2adf93a154cc",
+      "name": "Return Export Without Sending",
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
       "position": [
-        2800,
-        -280
+        4340,
+        -500
       ]
     },
     {
       "parameters": {
         "operation": "completion",
         "respondWith": "text",
-        "completionTitle": "Taslak reddedildi",
-        "completionMessage": "Taslak reddedildi. Approval endpoint'i çağrılmadı ve hiçbir .eml veya e-posta üretilmedi.",
+        "completionTitle": "Tüm taslaklar reddedildi",
+        "completionMessage": "Hiçbir taslak onaylanmadı. Approval endpoint'i çağrılmadı ve hiçbir .eml veya e-posta üretilmedi.",
         "options": {}
       },
       "id": "313775ba-42e3-489e-9da4-8c87ac73fbce",
@@ -650,25 +864,8 @@
       "type": "n8n-nodes-base.form",
       "typeVersion": 2.5,
       "position": [
-        2360,
-        -80
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "completion",
-        "respondWith": "text",
-        "completionTitle": "Audit başlatılmadı",
-        "completionMessage": "Kullanıcı audit başlatmayı onaylamadı. Kuyruğa iş eklenmedi.",
-        "options": {}
-      },
-      "id": "d6127850-4a2b-4f2b-a4a1-f46bdc34dcf4",
-      "name": "Audit Rejected Result",
-      "type": "n8n-nodes-base.form",
-      "typeVersion": 2.5,
-      "position": [
-        -60,
-        120
+        3240,
+        -280
       ]
     }
   ],
@@ -799,7 +996,7 @@
       "main": [
         [
           {
-            "node": "Select Review Company",
+            "node": "Get Draft Context",
             "type": "main",
             "index": 0
           }
@@ -853,17 +1050,6 @@
         ]
       ]
     },
-    "Select Review Company": {
-      "main": [
-        [
-          {
-            "node": "Get Draft Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Get Draft Context": {
       "main": [
         [
@@ -879,7 +1065,25 @@
       "main": [
         [
           {
+            "node": "Any Draft Candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Draft Candidate?": {
+      "main": [
+        [
+          {
             "node": "Validate and Store Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reviewable Draft Result",
             "type": "main",
             "index": 0
           }
@@ -890,6 +1094,53 @@
       "main": [
         [
           {
+            "node": "Collect Stored Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Stored Drafts": {
+      "main": [
+        [
+          {
+            "node": "Any Draft Stored?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Draft Stored?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reviewable Draft Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Drafts": {
+      "main": [
+        [
+          {
+            "node": "Assemble Review Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Request Short-Lived Preview Access",
             "type": "main",
             "index": 0
@@ -897,7 +1148,40 @@
         ]
       ]
     },
+    "Request Short-Lived Preview Access": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Review Page": {
+      "main": [
+        [
+          {
+            "node": "Human Draft Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Human Draft Review": {
+      "main": [
+        [
+          {
+            "node": "Resolve Review Decisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Review Decisions": {
       "main": [
         [
           {
@@ -941,18 +1225,47 @@
       "main": [
         [
           {
-            "node": "Return EML Without Sending",
+            "node": "Bundle Approved Exports",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Request Short-Lived Preview Access": {
+    "Bundle Approved Exports": {
       "main": [
         [
           {
-            "node": "Human Draft Review",
+            "node": "Multiple Approved Exports?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Multiple Approved Exports?": {
+      "main": [
+        [
+          {
+            "node": "Zip Approved Exports",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Export Without Sending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zip Approved Exports": {
+      "main": [
+        [
+          {
+            "node": "Return Export Without Sending",
             "type": "main",
             "index": 0
           }

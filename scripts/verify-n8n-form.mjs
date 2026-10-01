@@ -38,22 +38,24 @@ try {
 
   await page.getByText(/Kanıta bağlı taslak incelemesi/i).waitFor({ timeout: 90_000 });
   await page.getByText(/otomatik e-posta göndermez/i).waitFor();
-  const image = page.getByAltText('Audit screenshot');
-  assert.equal(await image.count(), 1, 'review form did not render the screenshot element');
+  const image = page.getByAltText('Audit screenshot').first();
+  assert.ok(await image.count(), 'review form did not render the screenshot element');
   if (!(await image.evaluate((element) => element.naturalWidth > 0))) {
     console.error(`screenshot element: ${(await image.evaluate((element) => element.outerHTML)).slice(0, 240)}`);
   }
   assert.ok(await image.evaluate((element) => element.naturalWidth > 0), 'controlled screenshot preview did not decode');
-  await page.getByLabel(decision).check();
+  // One explicit decision per draft; this script applies the same one to all.
+  const choices = page.getByLabel(decision, { exact: true });
+  for (let i = 0; i < await choices.count(); i += 1) await choices.nth(i).check();
 
   if (decision === 'Onayla') {
     const download = page.waitForEvent('download', { timeout: 20_000 });
-    await page.getByRole('button', { name: /İnceleme kararını kaydet/i }).click();
+    await page.getByRole('button', { name: /İnceleme kararlarını kaydet/i }).click();
     const file = await download;
-    assert.match(file.suggestedFilename(), /\.eml$/);
+    // A single approved draft downloads as .eml; several arrive as one .zip.
+    assert.match(file.suggestedFilename(), /\.(?:eml|zip)$/);
   } else {
-    await page.getByLabel('rejection_note').fill('Headless rejection-path verification');
-    await page.getByRole('button', { name: /İnceleme kararını kaydet/i }).click();
+    await page.getByRole('button', { name: /İnceleme kararlarını kaydet/i }).click();
     await page.getByText(/Approval endpoint'i çağrılmadı/i).waitFor({ timeout: 10_000 });
   }
   console.log(JSON.stringify({ form: 'ok', screenshot: 'decoded', decision }));

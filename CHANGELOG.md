@@ -4,6 +4,26 @@ Notable changes to PitchTrace are recorded here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) pre-release conventions.
 
+## [Unreleased]
+
+### Added
+
+- `GET /campaigns/{id}/draft-contexts`: draft context for every eligible
+  company in a campaign, with a reason (`SUPPRESSED`, `SCORE_BELOW_THRESHOLD`,
+  `DRAFT_CONTEXT_NOT_FOUND`) for each skipped one, and the screenshot artifact
+  to preview.
+
+### Changed
+
+- The n8n review now covers the whole campaign instead of only the first
+  imported company. One page shows every draft with its own preview and
+  requires an explicit Onayla/Reddet per draft; approved drafts download as one
+  `.eml` or, when several, as a single `.zip`. Companies without an eligible
+  finding or screenshot, or whose draft the validator rejects, are skipped with
+  their reason instead of failing the execution.
+- The unused `rejection_note` field was removed from the review form; it was
+  never sent to the analyzer.
+
 ## [0.1.0-alpha.8] - 2026-09-26
 
 First end-to-end human-reviewed alpha and the first tagged GitHub pre-release.
